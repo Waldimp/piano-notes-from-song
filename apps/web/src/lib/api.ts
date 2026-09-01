@@ -6,7 +6,18 @@ import { isPianoTranscription } from "@piano/contracts";
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8010";
 
-export async function fetchTranscriptionList(): Promise<{ id: string }[]> {
+export interface SongSummary {
+  id: string;
+  title: string;
+  filename: string;
+  duration: number;
+  note_count: number;
+  pedal_count: number;
+  engine: string;
+  created_at: string;
+}
+
+export async function fetchTranscriptionList(): Promise<SongSummary[]> {
   const res = await fetch(`${API_URL}/api/transcriptions`);
   if (!res.ok) throw new Error(`API respondió ${res.status}`);
   return res.json();

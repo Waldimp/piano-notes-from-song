@@ -32,3 +32,6 @@ Thumbs.db
 
 # Artefactos de pruebas de navegador
 .playwright-mcp/
+
+# Biblioteca local
+data/library.db

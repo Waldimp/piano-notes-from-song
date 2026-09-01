@@ -85,6 +85,9 @@ def run_transcription_job(store: JobStore, job: Job, audio_path: Path, output_di
                 "pedalCount": len(result.transcription.pedals),
                 "engine": result.engine,
             }
+            from . import library
+
+            library.upsert_song(audio_path.stem, result.notes_path)
             job.status = "done"
         except Exception as exc:  # noqa: BLE001 — el estado del job ES el manejo
             logger.exception("Job %s fallo", job.id)

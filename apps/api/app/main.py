@@ -11,15 +11,17 @@ import logging
 import re
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from piano_ml.engines.base import EngineError
 from piano_ml.engines.high_resolution import HighResolutionEngine
 from piano_ml.pipeline import transcribe_file
 from piano_ml.preprocessing.audio import SUPPORTED_EXTENSIONS, AudioDecodeError
 
+from . import library
 from .jobs import JobStore, run_transcription_job
 
 logger = logging.getLogger("piano.api")
@@ -43,6 +45,8 @@ app.add_middleware(
 # Un solo engine por proceso: el modelo se carga una vez y se reutiliza.
 _engine = HighResolutionEngine()
 _jobs = JobStore()
+
+library.ensure_schema()
 
 
 def _safe_stem(name: str) -> str:
@@ -69,6 +73,8 @@ async def transcribe(file: UploadFile) -> dict:
     except (AudioDecodeError, EngineError) as exc:
         logger.error("Transcripcion fallida: %s", exc)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    library.upsert_song(stem, result.notes_path)
 
     return {
         "id": stem,
@@ -121,13 +127,27 @@ def get_job(job_id: str) -> dict:
 
 @app.get("/api/transcriptions")
 def list_transcriptions() -> list[dict]:
-    """Lista las transcripciones ya generadas en data/output/."""
-    items = []
-    if OUTPUT_DIR.is_dir():
-        for d in sorted(OUTPUT_DIR.iterdir()):
-            if (d / "notes.json").is_file():
-                items.append({"id": d.name})
-    return items
+    """Lista la biblioteca con metadata (backfillea transcripciones del CLI)."""
+    return library.list_songs(OUTPUT_DIR)
+
+
+class RenamePayload(BaseModel):
+    title: str
+
+
+@app.patch("/api/transcriptions/{transcription_id}")
+def rename_transcription(transcription_id: str, payload: RenamePayload) -> dict:
+    _output_dir_for(transcription_id)  # valida id y existencia
+    if not library.rename_song(transcription_id, payload.title):
+        raise HTTPException(status_code=400, detail="Titulo vacio o cancion no registrada")
+    return {"id": transcription_id, "title": payload.title.strip()}
+
+
+@app.delete("/api/transcriptions/{transcription_id}")
+def delete_transcription(transcription_id: str) -> Response:
+    _output_dir_for(transcription_id)  # valida id y existencia
+    library.delete_song(transcription_id, OUTPUT_DIR)
+    return Response(status_code=204)
 
 
 def _output_dir_for(transcription_id: str) -> Path:
