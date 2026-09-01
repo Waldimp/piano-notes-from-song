@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+npm-debug.log*
+
+# Modelos / datos pesados (regenerables o locales)
+ml/checkpoints/*.pth
+data/input/*
+data/output/*
+!data/input/.gitkeep
+!data/output/.gitkeep
+
+# Entorno
+.env
+.env.local
+
+# SO / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "piano-ml"
+version = "0.1.0"
+description = "Transcripcion de piano y contratos normalizados (local-first)"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7",
+    "numpy",
+    "piano_transcription_inference==0.0.6",
+    "audioread",
+    "soundfile",
+]
+
+[tool.setuptools.packages.find]
+include = ["piano_ml*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
