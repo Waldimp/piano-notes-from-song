@@ -96,7 +96,7 @@ Opciones: `--device cpu|cuda|auto`, `--no-midi`, `--checkpoint <ruta>`, `--outpu
 ## Ejecutar el backend
 
 ```powershell
-.venv\Scripts\python -m uvicorn app.main:app --app-dir apps\api --port 8000
+.venv\Scripts\python -m uvicorn app.main:app --app-dir apps\api --port 8010
 ```
 
 - `GET  /health` — estado y dispositivo en uso
@@ -118,6 +118,14 @@ Abre <http://localhost:3000>, elige una transcripción y se carga el tutorial.
 .venv\Scripts\python -m pytest ml\tests -q     # contrato + normalización
 npm run test:web                                # lógica del renderer (Fase 2)
 ```
+
+## Versiones verificadas
+
+El entorno reproducible completo está en `requirements.lock.txt` (`pip freeze`).
+Claves: `torch==2.11.0+cu128`, `piano_transcription_inference==0.0.6`,
+`librosa==1.0.0`, `pydantic==2.13.5`, `fastapi==0.116.1`. Rendimiento medido
+(RTX PRO 2000, 8 GB): 40 s de audio → 510 notas en ~8 s de inferencia
+(+ ~6 s de carga del modelo, una vez por proceso).
 
 ## Variables de entorno
 
