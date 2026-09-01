@@ -29,10 +29,11 @@ OUTPUT_DIR = REPO_ROOT / "data" / "output"
 
 app = FastAPI(title="Piano Tutorial API", version="0.1.0")
 
-# Local-first: el frontend Next.js corre en localhost:3000.
+# Local-first: se acepta cualquier puerto de localhost (Next elige otro
+# puerto si el 3000 esta ocupado).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_methods=["*"],
     allow_headers=["*"],
 )

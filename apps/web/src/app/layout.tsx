@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
-      <body style={{ margin: 0, fontFamily: "system-ui, sans-serif" }}>{children}</body>
+      <body style={{ margin: 0, fontFamily: "system-ui, sans-serif", background: "#0e0e14" }}>{children}</body>
     </html>
   );
 }

@@ -29,3 +29,6 @@ data/output/*
 Thumbs.db
 .idea/
 .vscode/
+
+# Artefactos de pruebas de navegador
+.playwright-mcp/
