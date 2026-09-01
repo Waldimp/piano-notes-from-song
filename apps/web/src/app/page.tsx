@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import UploadBox from "@/components/UploadBox";
 import { API_URL, fetchTranscriptionList } from "@/lib/api";
 
 export default function Home() {
@@ -21,6 +22,8 @@ export default function Home() {
       <p style={styles.subtitle}>
         Transcripciones disponibles en <code>data/output/</code>
       </p>
+
+      <UploadBox />
 
       {error && (
         <div style={styles.error}>

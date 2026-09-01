@@ -11,7 +11,7 @@ import logging
 import re
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import BackgroundTasks, FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -19,6 +19,8 @@ from piano_ml.engines.base import EngineError
 from piano_ml.engines.high_resolution import HighResolutionEngine
 from piano_ml.pipeline import transcribe_file
 from piano_ml.preprocessing.audio import SUPPORTED_EXTENSIONS, AudioDecodeError
+
+from .jobs import JobStore, run_transcription_job
 
 logger = logging.getLogger("piano.api")
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -40,6 +42,7 @@ app.add_middleware(
 
 # Un solo engine por proceso: el modelo se carga una vez y se reutiliza.
 _engine = HighResolutionEngine()
+_jobs = JobStore()
 
 
 def _safe_stem(name: str) -> str:
@@ -56,18 +59,10 @@ def health() -> dict:
 
 @app.post("/api/transcribe")
 async def transcribe(file: UploadFile) -> dict:
-    """Sube un audio, lo transcribe y devuelve la transcripcion normalizada."""
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in SUPPORTED_EXTENSIONS:
-        raise HTTPException(
-            status_code=415,
-            detail=f"Formato no soportado '{suffix}'. Soportados: {sorted(SUPPORTED_EXTENSIONS)}",
-        )
-
-    stem = _safe_stem(file.filename or "audio")
-    INPUT_DIR.mkdir(parents=True, exist_ok=True)
-    audio_path = INPUT_DIR / f"{stem}{suffix}"
+    """Version sincrona (util para curl/scripts). El navegador usa /api/jobs."""
+    audio_path = _save_upload(file)
     audio_path.write_bytes(await file.read())
+    stem = audio_path.stem
 
     try:
         result = transcribe_file(audio_path, engine=_engine, output_root=OUTPUT_DIR)
@@ -86,6 +81,42 @@ async def transcribe(file: UploadFile) -> dict:
         },
         "transcription": result.transcription.model_dump(),
     }
+
+
+def _save_upload(file: UploadFile) -> Path:
+    """Valida y guarda el upload en data/input; devuelve la ruta local."""
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Formato no soportado '{suffix}'. Soportados: {sorted(SUPPORTED_EXTENSIONS)}",
+        )
+    stem = _safe_stem(file.filename or "audio")
+    INPUT_DIR.mkdir(parents=True, exist_ok=True)
+    return INPUT_DIR / f"{stem}{suffix}"
+
+
+@app.post("/api/jobs", status_code=202)
+async def create_job(file: UploadFile, background: BackgroundTasks) -> dict:
+    """Sube un audio y encola su transcripcion; devuelve el id del job."""
+    audio_path = _save_upload(file)
+    audio_path.write_bytes(await file.read())
+
+    job = _jobs.create(filename=audio_path.name)
+    background.add_task(run_transcription_job, _jobs, job, audio_path, OUTPUT_DIR, _engine)
+    logger.info("Job %s encolado para %s", job.id, audio_path.name)
+    return {"jobId": job.id}
+
+
+@app.get("/api/jobs/{job_id}")
+def get_job(job_id: str) -> dict:
+    job = _jobs.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job no encontrado")
+    data = job.to_public()
+    if job.status in ("queued", "processing"):
+        data["queuePosition"] = _jobs.queue_position(job_id)
+    return data
 
 
 @app.get("/api/transcriptions")
