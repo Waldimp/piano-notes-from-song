@@ -56,6 +56,17 @@ def _safe_stem(name: str) -> str:
     return stem or "audio"
 
 
+# Un id valido es lo que produce _safe_stem: solo estos caracteres, sin
+# empezar por punto y sin ".." (nada de path traversal). No se puede
+# re-aplicar _safe_stem al id porque Path.stem cortaria en un punto
+# interior del nombre (p. ej. "Y2Mate.is_...").
+_ID_RE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9._-]*")
+
+
+def _is_safe_id(transcription_id: str) -> bool:
+    return bool(_ID_RE.fullmatch(transcription_id)) and ".." not in transcription_id
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "engine": _engine.name, "device": _engine.device}
@@ -151,7 +162,7 @@ def delete_transcription(transcription_id: str) -> Response:
 
 
 def _output_dir_for(transcription_id: str) -> Path:
-    if transcription_id != _safe_stem(transcription_id):
+    if not _is_safe_id(transcription_id):
         raise HTTPException(status_code=400, detail="Identificador invalido")
     d = OUTPUT_DIR / transcription_id
     if not d.is_dir():
