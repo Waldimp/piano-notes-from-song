@@ -15,16 +15,29 @@ const COLORS = {
   background: "#14141c",
   laneLine: "#23232e",
   whiteKey: "#f5f2ea",
-  whiteKeyActive: "#7dd487",
   blackKey: "#1f1f26",
-  blackKeyActive: "#4caf60",
   keyBorder: "#0a0a0e",
   keyboardLine: "#e05b4b",
-  noteOnWhite: "#63c96f",
-  noteOnBlack: "#2f9e4f",
   noteBorder: "rgba(0,0,0,0.35)",
-  loopShade: "rgba(224, 91, 75, 0.10)",
 };
+
+/** Colores por mano: derecha/sin mano en verde, izquierda en azul. */
+const HAND_COLORS = {
+  right: { onWhite: "#63c96f", onBlack: "#2f9e4f", keyWhite: "#7dd487", keyBlack: "#4caf60" },
+  left: { onWhite: "#5fa8dc", onBlack: "#3178ac", keyWhite: "#7cbde8", keyBlack: "#4a90c4" },
+};
+
+export type HandFilter = "both" | "left" | "right";
+
+function handOf(note: PianoNote): "left" | "right" {
+  return note.hand === "left" ? "left" : "right";
+}
+
+/** Opacidad de una nota segun el filtro de mano activo. */
+function noteAlpha(note: PianoNote, filter: HandFilter): number {
+  if (filter === "both") return 1;
+  return handOf(note) === filter ? 1 : 0.16;
+}
 
 export interface FrameState {
   notes: PianoNote[];
@@ -33,6 +46,7 @@ export interface FrameState {
   currentTime: number;
   loopA: number | null;
   loopB: number | null;
+  handFilter: HandFilter;
 }
 
 export function drawFrame(
@@ -99,14 +113,17 @@ function drawFallingNotes(
     // para que el ojo las conecte con su tecla.
     const barWidth = black ? g.width : g.width * 0.86;
     const x = g.x + (g.width - barWidth) / 2;
+    const palette = HAND_COLORS[handOf(note)];
 
-    ctx.fillStyle = black ? COLORS.noteOnBlack : COLORS.noteOnWhite;
+    ctx.globalAlpha = noteAlpha(note, state.handFilter);
+    ctx.fillStyle = black ? palette.onBlack : palette.onWhite;
     ctx.strokeStyle = COLORS.noteBorder;
     ctx.beginPath();
     const radius = Math.min(4, barWidth / 2, (bottom - top) / 2);
     ctx.roundRect(x, top, barWidth, bottom - top, radius);
     ctx.fill();
     ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -118,11 +135,14 @@ function drawKeyboard(
   state: FrameState,
   { lo, hi }: { lo: number; hi: number },
 ): void {
-  const { notes, currentTime } = state;
-  // Teclas que están sonando ahora mismo (para iluminarlas).
-  const active = new Set<number>();
+  const { notes, currentTime, handFilter } = state;
+  // Teclas que están sonando ahora mismo, con la mano que las toca.
+  const active = new Map<number, "left" | "right">();
   for (let i = lo; i < hi; i++) {
-    if (isSounding(notes[i], currentTime)) active.add(notes[i].pitch);
+    const n = notes[i];
+    if (!isSounding(n, currentTime)) continue;
+    if (handFilter !== "both" && handOf(n) !== handFilter) continue;
+    active.set(n.pitch, handOf(n));
   }
 
   // Línea de impacto
@@ -133,7 +153,8 @@ function drawKeyboard(
   for (let pitch = 21; pitch <= 108; pitch++) {
     if (isBlackKey(pitch)) continue;
     const g = keyGeometry(pitch, width);
-    ctx.fillStyle = active.has(pitch) ? COLORS.whiteKeyActive : COLORS.whiteKey;
+    const hand = active.get(pitch);
+    ctx.fillStyle = hand ? HAND_COLORS[hand].keyWhite : COLORS.whiteKey;
     ctx.fillRect(g.x, keyboardY, g.width, keyboardHeight);
     ctx.strokeStyle = COLORS.keyBorder;
     ctx.lineWidth = 1;
@@ -142,7 +163,8 @@ function drawKeyboard(
   for (let pitch = 21; pitch <= 108; pitch++) {
     if (!isBlackKey(pitch)) continue;
     const g = keyGeometry(pitch, width);
-    ctx.fillStyle = active.has(pitch) ? COLORS.blackKeyActive : COLORS.blackKey;
+    const hand = active.get(pitch);
+    ctx.fillStyle = hand ? HAND_COLORS[hand].keyBlack : COLORS.blackKey;
     ctx.fillRect(g.x, keyboardY, g.width, keyboardHeight * 0.62);
   }
 }

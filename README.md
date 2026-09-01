@@ -77,6 +77,14 @@ python -m venv .venv
 npm install
 ```
 
+## Preparar la biblioteca (una vez)
+
+```powershell
+.venv\Scripts\python scripts\migrate.py   # crea/actualiza data/library.db
+```
+
+(El backend también la aplica solo al arrancar.)
+
 ## Transcribir un archivo (Fase 1)
 
 ```powershell
@@ -91,7 +99,11 @@ transcription.mid   MIDI para escucha/depuración
 source.mp3          copia del audio original (para el tutorial)
 ```
 
-Opciones: `--device cpu|cuda|auto`, `--no-midi`, `--checkpoint <ruta>`, `--output <dir>`.
+Opciones: `--device cpu|cuda|auto`, `--no-midi`, `--no-hands`, `--checkpoint <ruta>`, `--output <dir>`.
+
+La separación de manos es una heurística de punto de corte dinámico
+(`docs/decisions/0003`); `scripts/assign_hands.py` la recalcula sobre
+transcripciones existentes. `scripts/benchmark.py` mide tiempos/RAM/VRAM.
 
 ## Ejecutar el backend
 
@@ -100,8 +112,10 @@ Opciones: `--device cpu|cuda|auto`, `--no-midi`, `--checkpoint <ruta>`, `--outpu
 ```
 
 - `GET  /health` — estado y dispositivo en uso
-- `POST /api/transcribe` — multipart upload, transcripción síncrona
-- `GET  /api/transcriptions` — lista transcripciones generadas
+- `POST /api/jobs` + `GET /api/jobs/{id}` — transcripción en background (lo que usa el navegador)
+- `POST /api/transcribe` — transcripción síncrona (útil para curl/scripts)
+- `GET  /api/transcriptions` — biblioteca con metadata
+- `PATCH/DELETE /api/transcriptions/{id}` — renombrar / eliminar
 - `GET  /api/transcriptions/{id}/notes|midi|audio`
 
 ## Ejecutar el frontend
@@ -110,7 +124,10 @@ Opciones: `--device cpu|cuda|auto`, `--no-midi`, `--checkpoint <ruta>`, `--outpu
 npm run dev:web
 ```
 
-Abre <http://localhost:3000>, elige una transcripción y se carga el tutorial.
+Abre <http://localhost:3000>: puedes subir un audio directamente (job en
+background con estado) o abrir una canción de la biblioteca. En el tutorial:
+velocidades 0.25x–1.50x, loop A/B, filtro de manos (verde = derecha,
+azul = izquierda) y marcadores de sección (se guardan en el navegador).
 
 ## Tests
 

@@ -29,6 +29,8 @@ def main() -> int:
     parser.add_argument("--output", default=str(REPO_ROOT / "data" / "output"),
                         help="Directorio raiz de salida")
     parser.add_argument("--no-midi", action="store_true", help="No generar transcription.mid")
+    parser.add_argument("--no-hands", action="store_true",
+                        help="No asignar manos heuristicamente (deja hand=null)")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -47,6 +49,7 @@ def main() -> int:
             engine=engine,
             output_root=args.output,
             write_midi_file=not args.no_midi,
+            infer_hands=not args.no_hands,
         )
     except (FileNotFoundError, AudioDecodeError, EngineError) as exc:
         logging.error("%s", exc)

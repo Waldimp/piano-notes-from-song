@@ -13,14 +13,37 @@ import type { PianoTranscription } from "@piano/contracts";
 
 import { audioUrl, fetchNotes } from "@/lib/api";
 import { maxDuration } from "@/lib/falling";
-import { drawFrame } from "@/lib/renderer";
+import { type HandFilter, drawFrame } from "@/lib/renderer";
 
-const SPEEDS = [0.5, 0.75, 1.0] as const;
+const SPEEDS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5] as const;
+
+interface Marker {
+  name: string;
+  t: number;
+}
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+/** Marcadores por canción en localStorage (conveniencia local del navegador). */
+function loadMarkers(id: string): Marker[] {
+  try {
+    const raw = localStorage.getItem(`piano:markers:${id}`);
+    return raw ? (JSON.parse(raw) as Marker[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveMarkers(id: string, markers: Marker[]): void {
+  try {
+    localStorage.setItem(`piano:markers:${id}`, JSON.stringify(markers));
+  } catch {
+    // sin almacenamiento disponible: los marcadores viven solo en la sesión
+  }
 }
 
 export default function Tutorial({ id }: { id: string }) {
@@ -31,12 +54,15 @@ export default function Tutorial({ id }: { id: string }) {
   const [displayTime, setDisplayTime] = useState(0);
   const [loopA, setLoopA] = useState<number | null>(null);
   const [loopB, setLoopB] = useState<number | null>(null);
+  const [handFilter, setHandFilter] = useState<HandFilter>("both");
+  const [markers, setMarkers] = useState<Marker[]>([]);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   // Refs espejo para que el bucle rAF no dependa de re-renders de React.
   const loopRef = useRef<{ a: number | null; b: number | null }>({ a: null, b: null });
+  const handFilterRef = useRef<HandFilter>("both");
   const maxDurRef = useRef(0);
 
   useEffect(() => {
@@ -46,11 +72,16 @@ export default function Tutorial({ id }: { id: string }) {
         setTranscription(t);
       })
       .catch((e: Error) => setError(e.message));
+    setMarkers(loadMarkers(id));
   }, [id]);
 
   useEffect(() => {
     loopRef.current = { a: loopA, b: loopB };
   }, [loopA, loopB]);
+
+  useEffect(() => {
+    handFilterRef.current = handFilter;
+  }, [handFilter]);
 
   // Bucle de render: audio.currentTime -> canvas.
   useEffect(() => {
@@ -97,6 +128,7 @@ export default function Tutorial({ id }: { id: string }) {
         currentTime: audio.currentTime,
         loopA: a,
         loopB: b,
+        handFilter: handFilterRef.current,
       });
       setDisplayTime(audio.currentTime);
       raf = requestAnimationFrame(tick);
@@ -157,6 +189,21 @@ export default function Tutorial({ id }: { id: string }) {
     setLoopB(null);
   };
 
+  const addMarker = () => {
+    const t = audioRef.current?.currentTime ?? 0;
+    const next = [...markers, { name: `M${markers.length + 1}`, t }].sort(
+      (a, b) => a.t - b.t,
+    );
+    setMarkers(next);
+    saveMarkers(id, next);
+  };
+
+  const removeMarker = (index: number) => {
+    const next = markers.filter((_, i) => i !== index);
+    setMarkers(next);
+    saveMarkers(id, next);
+  };
+
   if (error) {
     return (
       <div style={styles.message}>
@@ -170,6 +217,7 @@ export default function Tutorial({ id }: { id: string }) {
   }
 
   const duration = transcription.duration;
+  const hasHands = transcription.notes.some((n) => n.hand !== null);
 
   return (
     <div style={styles.page}>
@@ -224,6 +272,52 @@ export default function Tutorial({ id }: { id: string }) {
         </span>
       </div>
 
+      <div style={styles.controls}>
+        {hasHands && (
+          <span style={styles.group} role="group" aria-label="Filtro de manos">
+            {(
+              [
+                ["both", "Ambas manos"],
+                ["left", "Izquierda"],
+                ["right", "Derecha"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setHandFilter(value)}
+                style={{
+                  ...styles.button,
+                  ...(handFilter === value ? styles.buttonActive : {}),
+                  ...(value === "left" ? styles.leftHint : {}),
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </span>
+        )}
+
+        <span style={styles.group}>
+          <button style={styles.button} onClick={addMarker}>
+            ＋ Marcador
+          </button>
+          {markers.map((m, i) => (
+            <span key={`${m.t}-${i}`} style={styles.marker}>
+              <button style={styles.markerJump} onClick={() => seek(m.t)}>
+                {m.name} {formatTime(m.t)}
+              </button>
+              <button
+                style={styles.markerRemove}
+                onClick={() => removeMarker(i)}
+                aria-label={`Eliminar marcador ${m.name}`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </span>
+      </div>
+
       <audio
         ref={audioRef}
         src={audioUrl(id)}
@@ -234,7 +328,8 @@ export default function Tutorial({ id }: { id: string }) {
       />
 
       <p style={styles.hint}>
-        Espacio: reproducir/pausar · A/B: marcar inicio y fin del loop de práctica ·{" "}
+        Espacio: reproducir/pausar · A/B: loop de práctica ·{" "}
+        {hasHands ? "verde: mano derecha, azul: izquierda · " : ""}
         {transcription.notes.length} notas · engine: {transcription.transcription.engine}
       </p>
     </div>
@@ -254,7 +349,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: "0.75rem",
-    padding: "0.6rem 1rem",
+    padding: "0.45rem 1rem",
     flexWrap: "wrap",
     borderTop: "1px solid #26262f",
   },
@@ -270,9 +365,30 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "0.9rem",
   },
   buttonActive: { background: "#4caf60", borderColor: "#4caf60", color: "#0e0e14" },
+  leftHint: {},
   time: { fontVariantNumeric: "tabular-nums", fontSize: "0.9rem" },
   seek: { flex: 1, minWidth: 180 },
-  group: { display: "inline-flex", gap: "0.35rem" },
+  group: { display: "inline-flex", gap: "0.35rem", flexWrap: "wrap", alignItems: "center" },
+  marker: { display: "inline-flex", alignItems: "stretch" },
+  markerJump: {
+    background: "#1c2a36",
+    color: "#7cbde8",
+    border: "1px solid #2e4a60",
+    borderRight: "none",
+    borderRadius: "6px 0 0 6px",
+    padding: "0.3rem 0.55rem",
+    cursor: "pointer",
+    fontSize: "0.82rem",
+  },
+  markerRemove: {
+    background: "#1c2a36",
+    color: "#8b8b98",
+    border: "1px solid #2e4a60",
+    borderRadius: "0 6px 6px 0",
+    padding: "0.3rem 0.45rem",
+    cursor: "pointer",
+    fontSize: "0.82rem",
+  },
   message: { padding: "2rem", color: "#e8e6e0", background: "#0e0e14", minHeight: "100vh" },
   hint: { margin: 0, padding: "0 1rem 0.75rem", fontSize: "0.78rem", color: "#8b8b98" },
 };

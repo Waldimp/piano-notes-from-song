@@ -15,6 +15,7 @@ from pathlib import Path
 
 from .contracts import PianoTranscription
 from .engines.base import TranscriptionEngine
+from .hands import assign_hands
 from .midi import write_midi
 from .normalize import NormalizationReport, normalize_raw
 
@@ -38,6 +39,7 @@ def transcribe_file(
     engine: TranscriptionEngine,
     output_root: str | Path = "data/output",
     write_midi_file: bool = True,
+    infer_hands: bool = True,
 ) -> PipelineResult:
     """Transcribe `audio_path` y escribe data/output/<nombre>/notes.json (+ .mid)."""
     audio_path = Path(audio_path)
@@ -47,6 +49,8 @@ def transcribe_file(
 
     report = NormalizationReport()
     transcription = normalize_raw(raw, filename=audio_path.name, report=report)
+    if infer_hands:
+        transcription = assign_hands(transcription)
 
     out_dir = Path(output_root) / audio_path.stem
     out_dir.mkdir(parents=True, exist_ok=True)

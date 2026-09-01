@@ -18,13 +18,14 @@ export interface SongSummary {
 }
 
 export async function fetchTranscriptionList(): Promise<SongSummary[]> {
-  const res = await fetch(`${API_URL}/api/transcriptions`);
+  // no-store: son datos locales que cambian (retranscripciones, renombres).
+  const res = await fetch(`${API_URL}/api/transcriptions`, { cache: "no-store" });
   if (!res.ok) throw new Error(`API respondió ${res.status}`);
   return res.json();
 }
 
 export async function fetchNotes(id: string): Promise<PianoTranscription> {
-  const res = await fetch(`${API_URL}/api/transcriptions/${id}/notes`);
+  const res = await fetch(`${API_URL}/api/transcriptions/${id}/notes`, { cache: "no-store" });
   if (!res.ok) throw new Error(`No se pudo cargar notes.json (${res.status})`);
   const data = await res.json();
   if (!isPianoTranscription(data)) {
