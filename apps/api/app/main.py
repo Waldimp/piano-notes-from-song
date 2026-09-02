@@ -279,6 +279,15 @@ MEDIA_TYPES = {
 @app.get("/api/transcriptions/{transcription_id}/audio")
 def get_audio(transcription_id: str) -> FileResponse:
     out_dir = _output_dir_for(transcription_id)
+    # Preferir el AAC/MP4 (saltos exactos); se genera al vuelo si la cancion es anterior.
+    try:
+        from piano_ml.preprocessing.playback import PLAYBACK_MEDIA_TYPE, ensure_playback_file
+
+        playback = ensure_playback_file(out_dir)
+        if playback is not None:
+            return FileResponse(playback, media_type=PLAYBACK_MEDIA_TYPE)
+    except Exception as exc:  # noqa: BLE001 — caer al original
+        logger.warning("playback.m4a no disponible para %s: %s", transcription_id, exc)
     for ext, media_type in MEDIA_TYPES.items():
         path = out_dir / f"source{ext}"
         if path.is_file():

@@ -76,12 +76,20 @@ def publish_song(song_dir: Path, title: str | None = None, client: Client | None
     if audio_file is None:
         raise FileNotFoundError(f"No hay source.<ext> en {song_dir}")
 
+    # Se publica el AAC/MP4 (saltos exactos en el navegador); el original solo si no se pudo generar.
+    from piano_ml.preprocessing.playback import PLAYBACK_MEDIA_TYPE, ensure_playback_file
+
+    playback = ensure_playback_file(song_dir)
+    if playback is not None:
+        upload_file, upload_type, upload_name = playback, PLAYBACK_MEDIA_TYPE, "playback.m4a"
+    else:
+        upload_file, upload_type, upload_name = audio_file, MEDIA_TYPES[audio_file.suffix.lower()], f"source{audio_file.suffix.lower()}"
+
     data = json.loads(notes_path.read_text(encoding="utf-8"))
-    ext = audio_file.suffix.lower()
-    audio_storage_path = f"{song_id}/source{ext}"
+    audio_storage_path = f"{song_id}/{upload_name}"
     notes_storage_path = f"{song_id}/notes.json"
 
-    _upload(client, AUDIO_BUCKET, audio_storage_path, audio_file.read_bytes(), MEDIA_TYPES[ext])
+    _upload(client, AUDIO_BUCKET, audio_storage_path, upload_file.read_bytes(), upload_type)
     _upload(client, NOTES_BUCKET, notes_storage_path, notes_path.read_bytes(), "application/json")
 
     row = {

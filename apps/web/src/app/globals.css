@@ -485,3 +485,8 @@ code {
   white-space: pre-wrap;
   color: var(--muted);
 }
+
+.sync-value {
+  font-variant-numeric: tabular-nums;
+  min-width: 7.5rem;
+}

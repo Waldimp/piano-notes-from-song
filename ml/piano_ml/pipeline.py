@@ -18,6 +18,7 @@ from .engines.base import TranscriptionEngine
 from .hands import assign_hands
 from .midi import write_midi
 from .normalize import NormalizationReport, normalize_raw
+from .preprocessing.playback import ensure_playback_file
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,11 @@ def transcribe_file(
     audio_copy = out_dir / f"source{audio_path.suffix.lower()}"
     if audio_copy.resolve() != audio_path.resolve():
         shutil.copy2(audio_path, audio_copy)
+    # Audio de reproduccion con saltos exactos (AAC/MP4) para el navegador.
+    try:
+        ensure_playback_file(out_dir)
+    except Exception as exc:  # noqa: BLE001 — sin el m4a se reproduce el original
+        logger.warning("No se genero playback.m4a: %s", exc)
 
     elapsed = time.perf_counter() - t0
     model_load = getattr(engine, "model_load_seconds", None)

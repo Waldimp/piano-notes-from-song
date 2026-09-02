@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { PianoTranscription } from "@piano/contracts";
 
+import { MediaClock, loadSyncOffsetMs, saveSyncOffsetMs } from "@/lib/clock";
 import { getDataSource } from "@/lib/data";
 import { maxDuration } from "@/lib/falling";
 import { type HandFilter, drawFrame } from "@/lib/renderer";
@@ -60,6 +61,7 @@ export default function Tutorial({ id }: { id: string }) {
   const [handFilter, setHandFilter] = useState<HandFilter>("both");
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [rotateDismissed, setRotateDismissed] = useState(false);
+  const [syncOffsetMs, setSyncOffsetMs] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -68,6 +70,9 @@ export default function Tutorial({ id }: { id: string }) {
   const loopRef = useRef<{ a: number | null; b: number | null }>({ a: null, b: null });
   const handFilterRef = useRef<HandFilter>("both");
   const maxDurRef = useRef(0);
+  // Reloj suavizado: el <audio> manda, pero se interpola entre sus lecturas.
+  const clockRef = useRef(new MediaClock());
+  const syncOffsetRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,6 +85,9 @@ export default function Tutorial({ id }: { id: string }) {
       })
       .catch((e: Error) => !cancelled && setError(e.message));
     setMarkers(loadMarkers(id));
+    const offset = loadSyncOffsetMs();
+    syncOffsetRef.current = offset;
+    setSyncOffsetMs(offset);
     return () => {
       cancelled = true;
     };
@@ -123,24 +131,41 @@ export default function Tutorial({ id }: { id: string }) {
     const observer = new ResizeObserver(resize);
     observer.observe(container);
 
+    // Cualquier salto o cambio de velocidad del audio re-ancla el reloj.
+    const resetClock = () => clockRef.current.reset();
+    for (const ev of ["seeked", "ratechange", "play", "pause"]) {
+      audio.addEventListener(ev, resetClock);
+    }
+
     const tick = () => {
-      const t = audio.currentTime;
+      const t = clockRef.current.update({
+        mediaTime: audio.currentTime,
+        nowMs: performance.now(),
+        playbackRate: audio.playbackRate,
+        paused: audio.paused,
+        seeking: audio.seeking,
+      });
 
       // Loop A/B: al llegar a B se vuelve a A.
       const { a, b } = loopRef.current;
       if (a !== null && b !== null && t >= b) {
         audio.currentTime = a;
+        clockRef.current.reset();
       }
+
+      // Ajuste de sincronia: positivo = las notas van "antes" respecto al audio
+      // reportado (compensa auriculares Bluetooth, que suenan tarde).
+      const renderTime = t + syncOffsetRef.current / 1000;
 
       drawFrame(ctx, cssWidth, cssHeight, {
         notes: transcription.notes,
         maxNoteDuration: maxDurRef.current,
-        currentTime: audio.currentTime,
+        currentTime: renderTime,
         loopA: a,
         loopB: b,
         handFilter: handFilterRef.current,
       });
-      setDisplayTime(audio.currentTime);
+      setDisplayTime(t);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -148,6 +173,9 @@ export default function Tutorial({ id }: { id: string }) {
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
+      for (const ev of ["seeked", "ratechange", "play", "pause"]) {
+        audio.removeEventListener(ev, resetClock);
+      }
     };
   }, [transcription, audioSrc]);
 
@@ -173,16 +201,35 @@ export default function Tutorial({ id }: { id: string }) {
   const changeSpeed = (rate: number) => {
     const audio = audioRef.current;
     if (audio) {
-      audio.playbackRate = rate;
+      // preservesPitch: cambia la velocidad sin cambiar el tono (Safari viejo usa el prefijo).
       audio.preservesPitch = true;
+      (audio as HTMLAudioElement & { webkitPreservesPitch?: boolean }).webkitPreservesPitch = true;
+      audio.playbackRate = rate;
+      clockRef.current.reset();
     }
     setSpeed(rate);
   };
 
   const seek = (t: number) => {
     const audio = audioRef.current;
-    if (audio) audio.currentTime = t;
+    if (audio) {
+      audio.currentTime = t;
+      clockRef.current.reset();
+    }
     setDisplayTime(t);
+  };
+
+  const changeSyncOffset = (deltaMs: number) => {
+    const next = Math.max(-500, Math.min(500, syncOffsetRef.current + deltaMs));
+    syncOffsetRef.current = next;
+    setSyncOffsetMs(next);
+    saveSyncOffsetMs(next);
+  };
+
+  const resetSyncOffset = () => {
+    syncOffsetRef.current = 0;
+    setSyncOffsetMs(0);
+    saveSyncOffsetMs(0);
   };
 
   const markA = () => {
@@ -316,6 +363,30 @@ export default function Tutorial({ id }: { id: string }) {
             ))}
           </span>
         )}
+
+        <span className="group" role="group" aria-label="Ajuste de sincronía">
+          <button
+            className="btn small"
+            onClick={() => changeSyncOffset(-25)}
+            title="Las notas llegan antes que el sonido: retrasarlas"
+          >
+            −
+          </button>
+          <button
+            className="btn small sync-value"
+            onClick={resetSyncOffset}
+            title="Ajuste de sincronía (clic para volver a 0). Súbelo si el sonido llega después que las notas, p. ej. con auriculares Bluetooth."
+          >
+            Sinc. {syncOffsetMs > 0 ? "+" : ""}{syncOffsetMs} ms
+          </button>
+          <button
+            className="btn small"
+            onClick={() => changeSyncOffset(25)}
+            title="El sonido llega después que las notas: adelantarlas"
+          >
+            +
+          </button>
+        </span>
 
         <span className="group">
           <button className="btn small" onClick={addMarker}>
