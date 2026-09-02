@@ -50,11 +50,30 @@ def _unique_stem(stem: str) -> str:
     return candidate
 
 
-def process_request(client, req: dict, engine) -> None:
+def claim_request(client, req_id: str) -> bool:
+    """Marca la solicitud como processing SOLO si sigue en cola (atomico).
+
+    Evita que dos workers (p. ej. la ventana de PowerShell y el panel del
+    backend) procesen la misma solicitud.
+    """
+    res = (
+        client.table("requests")
+        .update({"status": "processing", "started_at": _now()})
+        .eq("id", req_id)
+        .eq("status", "queued")
+        .execute()
+    )
+    return bool(res.data)
+
+
+def process_request(client, req: dict, engine) -> bool:
+    """Procesa una solicitud. Devuelve False si otro worker ya la habia tomado."""
     from piano_ml.pipeline import transcribe_file
 
     req_id = req["id"]
-    client.table("requests").update({"status": "processing", "started_at": _now()}).eq("id", req_id).execute()
+    if not claim_request(client, req_id):
+        logger.info("Solicitud %s ya tomada por otro worker; se omite", req_id)
+        return False
     logger.info("Solicitud %s: %s", req_id, req["filename"])
 
     try:
@@ -91,6 +110,18 @@ def process_request(client, req: dict, engine) -> None:
         client.table("requests").update(
             {"status": "error", "error": str(exc)[:500], "finished_at": _now()}
         ).eq("id", req_id).execute()
+    return True
+
+
+def drain_queue(client, engine) -> int:
+    """Procesa todo lo que haya en cola y devuelve cuantas solicitudes atendio."""
+    processed = 0
+    while True:
+        req = _fetch_next(client)
+        if req is None:
+            return processed
+        if process_request(client, req, engine):
+            processed += 1
 
 
 def run(once: bool = False, interval: float = 15.0) -> int:
@@ -104,11 +135,7 @@ def run(once: bool = False, interval: float = 15.0) -> int:
     processed = 0
     try:
         while True:
-            req = _fetch_next(client)
-            if req is not None:
-                process_request(client, req, engine)
-                processed += 1
-                continue  # puede haber mas en cola
+            processed += drain_queue(client, engine)
             if once:
                 break
             time.sleep(interval)

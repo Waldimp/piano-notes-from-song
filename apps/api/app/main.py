@@ -48,6 +48,28 @@ _jobs = JobStore()
 
 library.ensure_schema()
 
+def _cloud_configured() -> bool:
+    try:
+        from piano_worker.cloud import is_configured
+
+        return is_configured()
+    except ImportError:
+        return False
+
+
+# Panel de la cola en la nube (solo si hay Supabase configurado en .env)
+_cloud_panel = None
+if _cloud_configured():
+    from .cloud_worker import CloudWorkerPanel
+
+    _cloud_panel = CloudWorkerPanel(_engine, _jobs.run_lock)
+
+
+def _panel() -> "CloudWorkerPanel":
+    if _cloud_panel is None:
+        raise HTTPException(status_code=503, detail="Supabase no configurado en .env de esta PC")
+    return _cloud_panel
+
 
 def _safe_stem(name: str) -> str:
     """Nombre de carpeta seguro derivado del nombre de archivo subido."""
@@ -65,15 +87,6 @@ _ID_RE = re.compile(r"[A-Za-z0-9_-][A-Za-z0-9._-]*")
 
 def _is_safe_id(transcription_id: str) -> bool:
     return bool(_ID_RE.fullmatch(transcription_id)) and ".." not in transcription_id
-
-
-def _cloud_configured() -> bool:
-    try:
-        from piano_worker.cloud import is_configured
-
-        return is_configured()
-    except ImportError:
-        return False
 
 
 @app.get("/health")
@@ -148,6 +161,40 @@ def get_job(job_id: str) -> dict:
     if job.status in ("queued", "processing"):
         data["queuePosition"] = _jobs.queue_position(job_id)
     return data
+
+
+# ---------------------------------------------------------------------------
+# Panel local de la cola en la nube (solicitudes hechas desde el celular)
+# ---------------------------------------------------------------------------
+@app.get("/api/cloud/requests")
+def cloud_requests() -> list[dict]:
+    try:
+        return _panel().list_requests()
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 — red/credenciales
+        raise HTTPException(status_code=502, detail=f"No se pudo leer la cola: {exc}") from exc
+
+
+@app.get("/api/cloud/status")
+def cloud_status() -> dict:
+    return _panel().status()
+
+
+@app.post("/api/cloud/process", status_code=202)
+def cloud_process_now() -> dict:
+    started = _panel().process_now()
+    return {"started": started, "message": "Procesando la cola" if started else "Ya hay un procesamiento en curso"}
+
+
+class ListenPayload(BaseModel):
+    enabled: bool
+
+
+@app.post("/api/cloud/listen")
+def cloud_listen(payload: ListenPayload) -> dict:
+    _panel().set_listening(payload.enabled)
+    return {"listening": _panel().listening}
 
 
 @app.get("/api/transcriptions")

@@ -441,3 +441,47 @@ code {
   margin-top: 0.25rem;
   font-size: 0.9rem;
 }
+
+/* ---------- panel local de la cola en la nube ---------- */
+.cloud-panel {
+  margin-top: 1.5rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #2e4a60;
+  background: #121a22;
+  border-radius: 10px;
+}
+.cloud-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  background: var(--green-2);
+  color: var(--bg);
+  border-radius: 999px;
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.btn.listening {
+  border-color: var(--green-2);
+  color: var(--green);
+}
+.cloud-log {
+  margin: 0.5rem 0 0;
+  padding: 0.6rem 0.8rem;
+  background: #0b0f14;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--muted);
+}

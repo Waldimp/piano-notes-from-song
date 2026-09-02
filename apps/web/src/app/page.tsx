@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { useAuth } from "@/components/AuthGate";
+import CloudQueuePanel from "@/components/CloudQueuePanel";
 import UploadBox from "@/components/UploadBox";
 import { type JobState, type SongSummary, getDataSource } from "@/lib/data";
 import { API_URL } from "@/lib/data/local";
@@ -210,6 +211,8 @@ export default function Home() {
           ))}
         </ul>
       )}
+
+      {data.kind === "local" && cloudReady && <CloudQueuePanel onProcessed={reload} />}
 
       {data.kind === "cloud" && (
         <>
