@@ -35,3 +35,6 @@ Thumbs.db
 
 # Biblioteca local
 data/library.db
+
+.vercel
+.env*
