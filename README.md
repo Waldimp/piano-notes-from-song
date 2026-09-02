@@ -136,6 +136,12 @@ azul = izquierda) y marcadores de sección (se guardan en el navegador).
 npm run test:web                                # lógica del renderer (Fase 2)
 ```
 
+## Verlo desde el celular o la tablet (nube gratuita)
+
+Frontend en Vercel + datos en Supabase + tu PC como worker de GPU. Guía paso a
+paso en **`docs/deploy.md`**. Resumen: `scripts/publish.py` sube canciones,
+`scripts/worker.py` procesa las que pidan desde el celular (lo levantas tú).
+
 ## Versiones verificadas
 
 El entorno reproducible completo está en `requirements.lock.txt` (`pip freeze`).

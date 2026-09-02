@@ -1,14 +1,16 @@
 "use client";
 
 /**
- * Subida de audio → job de transcripción en background → tutorial.
- * Hace polling de GET /api/jobs/{id} cada 2 s hasta done/error.
+ * Subida de audio → job/solicitud → tutorial.
+ * Local: el backend transcribe en background y al terminar abre el tutorial.
+ * Nube: crea una solicitud que la PC con GPU procesa cuando su worker está
+ * encendido; aquí solo se informa el estado.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { API_URL } from "@/lib/api";
+import { getDataSource } from "@/lib/data";
 
 const ACCEPT = ".wav,.mp3,.m4a,.flac,.ogg";
 
@@ -16,16 +18,18 @@ type Phase =
   | { kind: "idle" }
   | { kind: "uploading"; name: string }
   | { kind: "waiting"; name: string; jobId: string; status: string; queuePosition: number | null; startedAt: number }
+  | { kind: "queued-cloud"; name: string }
   | { kind: "error"; message: string };
 
-export default function UploadBox() {
+export default function UploadBox({ onSubmitted }: { onSubmitted?: () => void }) {
   const router = useRouter();
+  const data = getDataSource();
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [dragOver, setDragOver] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Cronómetro visible mientras el job corre.
+  // Cronómetro visible mientras el job local corre.
   useEffect(() => {
     if (phase.kind !== "waiting") return;
     const t = setInterval(
@@ -35,22 +39,23 @@ export default function UploadBox() {
     return () => clearInterval(t);
   }, [phase]);
 
-  // Polling del estado del job.
+  // Polling del estado del job (solo modo local: en la nube se muestra la lista de solicitudes).
+  const jobId = phase.kind === "waiting" ? phase.jobId : null;
   useEffect(() => {
-    if (phase.kind !== "waiting") return;
+    if (!jobId) return;
     const poll = setInterval(async () => {
       try {
-        const res = await fetch(`${API_URL}/api/jobs/${phase.jobId}`);
-        if (!res.ok) throw new Error(`estado ${res.status}`);
-        const job = await res.json();
-        if (job.status === "done") {
+        const job = await data.getJob(jobId);
+        if (job.status === "done" && job.transcriptionId) {
           clearInterval(poll);
-          router.push(`/tutorial/${job.transcription_id}`);
+          router.push(`/tutorial/${job.transcriptionId}`);
         } else if (job.status === "error") {
           clearInterval(poll);
           setPhase({ kind: "error", message: job.error ?? "La transcripción falló" });
         } else {
-          setPhase({ ...phase, status: job.status, queuePosition: job.queuePosition });
+          setPhase((p) =>
+            p.kind === "waiting" ? { ...p, status: job.status, queuePosition: job.queuePosition } : p,
+          );
         }
       } catch (e) {
         clearInterval(poll);
@@ -58,43 +63,37 @@ export default function UploadBox() {
       }
     }, 2000);
     return () => clearInterval(poll);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.kind === "waiting" ? phase.jobId : null]);
+  }, [jobId, data, router]);
 
   const submit = async (file: File) => {
     setPhase({ kind: "uploading", name: file.name });
     try {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch(`${API_URL}/api/jobs`, { method: "POST", body });
-      if (!res.ok) {
-        const detail = await res.json().then((d) => d.detail).catch(() => res.statusText);
-        throw new Error(detail);
+      const id = await data.submitAudio(file);
+      if (data.kind === "cloud") {
+        setPhase({ kind: "queued-cloud", name: file.name });
+        onSubmitted?.();
+        return;
       }
-      const { jobId } = await res.json();
       setElapsed(0);
       setPhase({
         kind: "waiting",
         name: file.name,
-        jobId,
+        jobId: id,
         status: "queued",
         queuePosition: null,
         startedAt: Date.now(),
       });
     } catch (e) {
-      setPhase({ kind: "error", message: String(e instanceof Error ? e.message : e) });
+      setPhase({ kind: "error", message: e instanceof Error ? e.message : String(e) });
     }
   };
 
   const busy = phase.kind === "uploading" || phase.kind === "waiting";
+  const className = `upload-box${dragOver ? " drag" : ""}${busy ? " busy" : ""}`;
 
   return (
     <div
-      style={{
-        ...styles.box,
-        ...(dragOver ? styles.boxDrag : {}),
-        ...(busy ? styles.boxBusy : {}),
-      }}
+      className={className}
       onDragOver={(e) => {
         e.preventDefault();
         if (!busy) setDragOver(true);
@@ -109,24 +108,25 @@ export default function UploadBox() {
     >
       {phase.kind === "idle" && (
         <>
-          <p style={styles.title}>Transcribir una canción nueva</p>
-          <p style={styles.detail}>
-            Arrastra un audio de piano aquí ({ACCEPT}) o{" "}
-            <button style={styles.linkButton} onClick={() => inputRef.current?.click()}>
-              elige un archivo
+          <p className="title">Transcribir una canción nueva</p>
+          <p className="detail">
+            Audio de piano ({ACCEPT.replaceAll(",", " ")})
+            <br />
+            <button className="btn" type="button" onClick={() => inputRef.current?.click()}>
+              Elegir archivo
             </button>
           </p>
         </>
       )}
 
-      {phase.kind === "uploading" && <p style={styles.title}>Subiendo {phase.name}…</p>}
+      {phase.kind === "uploading" && <p className="title">Subiendo {phase.name}…</p>}
 
       {phase.kind === "waiting" && (
         <>
-          <p style={styles.title}>
+          <p className="title">
             {phase.status === "queued" ? "En cola" : "Transcribiendo"} {phase.name}… ({elapsed}s)
           </p>
-          <p style={styles.detail}>
+          <p className="detail">
             {phase.queuePosition !== null && phase.queuePosition > 1
               ? `Posición en la cola: ${phase.queuePosition}. `
               : ""}
@@ -135,11 +135,27 @@ export default function UploadBox() {
         </>
       )}
 
+      {phase.kind === "queued-cloud" && (
+        <>
+          <p className="title">✅ Solicitud enviada: {phase.name}</p>
+          <p className="detail">
+            Se transcribirá cuando la computadora con GPU tenga el worker encendido. Puedes
+            seguir el estado en la lista de solicitudes de abajo.
+            <br />
+            <button className="btn small" type="button" onClick={() => setPhase({ kind: "idle" })}>
+              Enviar otra
+            </button>
+          </p>
+        </>
+      )}
+
       {phase.kind === "error" && (
         <>
-          <p style={{ ...styles.title, color: "#e08b7d" }}>Error: {phase.message}</p>
-          <p style={styles.detail}>
-            <button style={styles.linkButton} onClick={() => setPhase({ kind: "idle" })}>
+          <p className="title" style={{ color: "var(--red)" }}>
+            Error: {phase.message}
+          </p>
+          <p className="detail">
+            <button className="btn small" type="button" onClick={() => setPhase({ kind: "idle" })}>
               Intentar de nuevo
             </button>
           </p>
@@ -160,27 +176,3 @@ export default function UploadBox() {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  box: {
-    border: "2px dashed #3a3a46",
-    borderRadius: 10,
-    padding: "1.4rem 1.2rem",
-    textAlign: "center",
-    marginBottom: "1.5rem",
-    transition: "border-color 0.15s, background 0.15s",
-  },
-  boxDrag: { borderColor: "#7dd487", background: "#16201a" },
-  boxBusy: { borderStyle: "solid", borderColor: "#3a5a46" },
-  title: { margin: "0 0 0.35rem", fontSize: "1rem" },
-  detail: { margin: 0, color: "#8b8b98", fontSize: "0.88rem" },
-  linkButton: {
-    background: "none",
-    border: "none",
-    color: "#7dd487",
-    cursor: "pointer",
-    textDecoration: "underline",
-    fontSize: "inherit",
-    padding: 0,
-  },
-};

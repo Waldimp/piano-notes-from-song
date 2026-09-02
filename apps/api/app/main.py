@@ -67,9 +67,23 @@ def _is_safe_id(transcription_id: str) -> bool:
     return bool(_ID_RE.fullmatch(transcription_id)) and ".." not in transcription_id
 
 
+def _cloud_configured() -> bool:
+    try:
+        from piano_worker.cloud import is_configured
+
+        return is_configured()
+    except ImportError:
+        return False
+
+
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "engine": _engine.name, "device": _engine.device}
+    return {
+        "status": "ok",
+        "engine": _engine.name,
+        "device": _engine.device,
+        "cloud": _cloud_configured(),
+    }
 
 
 @app.post("/api/transcribe")
@@ -152,6 +166,26 @@ def rename_transcription(transcription_id: str, payload: RenamePayload) -> dict:
     if not library.rename_song(transcription_id, payload.title):
         raise HTTPException(status_code=400, detail="Titulo vacio o cancion no registrada")
     return {"id": transcription_id, "title": payload.title.strip()}
+
+
+class PublishPayload(BaseModel):
+    title: str | None = None
+
+
+@app.post("/api/transcriptions/{transcription_id}/publish")
+def publish_transcription(transcription_id: str, payload: PublishPayload | None = None) -> dict:
+    """Sube la cancion a Supabase para verla desde cualquier dispositivo."""
+    out_dir = _output_dir_for(transcription_id)
+    if not _cloud_configured():
+        raise HTTPException(status_code=503, detail="Supabase no configurado en .env de esta PC")
+    from piano_worker.cloud import publish_song
+
+    try:
+        row = publish_song(out_dir, title=(payload.title if payload else None))
+    except Exception as exc:  # noqa: BLE001 — error de red/credenciales al usuario
+        logger.exception("Publicacion fallida")
+        raise HTTPException(status_code=502, detail=f"Supabase rechazo la publicacion: {exc}") from exc
+    return {"id": row["id"], "title": row["title"], "published": True}
 
 
 @app.delete("/api/transcriptions/{transcription_id}")

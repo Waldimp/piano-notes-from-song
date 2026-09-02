@@ -9,9 +9,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import type { PianoTranscription } from "@piano/contracts";
 
-import { audioUrl, fetchNotes } from "@/lib/api";
+import { getDataSource } from "@/lib/data";
 import { maxDuration } from "@/lib/falling";
 import { type HandFilter, drawFrame } from "@/lib/renderer";
 
@@ -47,7 +48,9 @@ function saveMarkers(id: string, markers: Marker[]): void {
 }
 
 export default function Tutorial({ id }: { id: string }) {
+  const data = getDataSource();
   const [transcription, setTranscription] = useState<PianoTranscription | null>(null);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1.0);
@@ -56,6 +59,7 @@ export default function Tutorial({ id }: { id: string }) {
   const [loopB, setLoopB] = useState<number | null>(null);
   const [handFilter, setHandFilter] = useState<HandFilter>("both");
   const [markers, setMarkers] = useState<Marker[]>([]);
+  const [rotateDismissed, setRotateDismissed] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -66,14 +70,20 @@ export default function Tutorial({ id }: { id: string }) {
   const maxDurRef = useRef(0);
 
   useEffect(() => {
-    fetchNotes(id)
-      .then((t) => {
+    let cancelled = false;
+    Promise.all([data.getTranscription(id), data.getAudioUrl(id)])
+      .then(([t, url]) => {
+        if (cancelled) return;
         maxDurRef.current = maxDuration(t.notes);
         setTranscription(t);
+        setAudioSrc(url);
       })
-      .catch((e: Error) => setError(e.message));
+      .catch((e: Error) => !cancelled && setError(e.message));
     setMarkers(loadMarkers(id));
-  }, [id]);
+    return () => {
+      cancelled = true;
+    };
+  }, [id, data]);
 
   useEffect(() => {
     loopRef.current = { a: loopA, b: loopB };
@@ -85,7 +95,7 @@ export default function Tutorial({ id }: { id: string }) {
 
   // Bucle de render: audio.currentTime -> canvas.
   useEffect(() => {
-    if (!transcription) return;
+    if (!transcription || !audioSrc) return;
     const canvas = canvasRef.current;
     const audio = audioRef.current;
     const container = containerRef.current;
@@ -139,7 +149,7 @@ export default function Tutorial({ id }: { id: string }) {
       cancelAnimationFrame(raf);
       observer.disconnect();
     };
-  }, [transcription]);
+  }, [transcription, audioSrc]);
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
@@ -206,90 +216,100 @@ export default function Tutorial({ id }: { id: string }) {
 
   if (error) {
     return (
-      <div style={styles.message}>
+      <div className="message">
         <p>No se pudo cargar el tutorial: {error}</p>
-        <p>¿Está corriendo el backend? (uvicorn en el puerto 8010)</p>
+        <Link href="/" className="btn">
+          ← Volver a la biblioteca
+        </Link>
       </div>
     );
   }
-  if (!transcription) {
-    return <div style={styles.message}>Cargando transcripción…</div>;
+  if (!transcription || !audioSrc) {
+    return <div className="message">Cargando transcripción…</div>;
   }
 
   const duration = transcription.duration;
   const hasHands = transcription.notes.some((n) => n.hand !== null);
 
   return (
-    <div style={styles.page}>
-      <div ref={containerRef} style={styles.canvasContainer}>
+    <div className="tutorial">
+      <div ref={containerRef} className="stage">
         <canvas ref={canvasRef} />
+        <div className={`rotate-hint${rotateDismissed ? "" : " visible"}`}>
+          <div>
+            📱↻ Gira el teléfono: en horizontal las 88 teclas se ven mucho mejor.
+            <br />
+            <button className="btn" onClick={() => setRotateDismissed(true)}>
+              Seguir en vertical
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div style={styles.controls}>
-        <button style={styles.button} onClick={togglePlay}>
-          {isPlaying ? "⏸ Pausa" : "▶ Reproducir"}
+      <div className="controls">
+        <Link href="/" className="back" aria-label="Volver a la biblioteca">
+          ←
+        </Link>
+        <button className="btn" onClick={togglePlay}>
+          {isPlaying ? "⏸" : "▶"}
         </button>
 
-        <span style={styles.time}>
+        <span className="time">
           {formatTime(displayTime)} / {formatTime(duration)}
         </span>
 
         <input
+          className="seek"
           type="range"
           min={0}
           max={duration}
           step={0.01}
           value={Math.min(displayTime, duration)}
           onChange={(e) => seek(Number(e.target.value))}
-          style={styles.seek}
           aria-label="Posición"
         />
 
-        <span style={styles.group}>
+        <span className="group" role="group" aria-label="Velocidad">
           {SPEEDS.map((s) => (
             <button
               key={s}
               onClick={() => changeSpeed(s)}
-              style={{ ...styles.button, ...(speed === s ? styles.buttonActive : {}) }}
+              className={`btn small${speed === s ? " active" : ""}`}
             >
-              {s.toFixed(2)}x
+              {s === 1 ? "1x" : `${s}x`}
             </button>
           ))}
         </span>
 
-        <span style={styles.group}>
-          <button style={styles.button} onClick={markA}>
-            A {loopA !== null ? `= ${formatTime(loopA)}` : ""}
+        <span className="group" role="group" aria-label="Loop A/B">
+          <button className="btn small" onClick={markA}>
+            A{loopA !== null ? ` ${formatTime(loopA)}` : ""}
           </button>
-          <button style={styles.button} onClick={markB} disabled={loopA === null}>
-            B {loopB !== null ? `= ${formatTime(loopB)}` : ""}
+          <button className="btn small" onClick={markB} disabled={loopA === null}>
+            B{loopB !== null ? ` ${formatTime(loopB)}` : ""}
           </button>
           {(loopA !== null || loopB !== null) && (
-            <button style={styles.button} onClick={clearLoop}>
-              ✕ Loop
+            <button className="btn small" onClick={clearLoop} aria-label="Quitar loop">
+              ✕
             </button>
           )}
         </span>
       </div>
 
-      <div style={styles.controls}>
+      <div className="controls">
         {hasHands && (
-          <span style={styles.group} role="group" aria-label="Filtro de manos">
+          <span className="group" role="group" aria-label="Filtro de manos">
             {(
               [
-                ["both", "Ambas manos"],
-                ["left", "Izquierda"],
-                ["right", "Derecha"],
+                ["both", "Ambas"],
+                ["left", "Izq."],
+                ["right", "Der."],
               ] as const
             ).map(([value, label]) => (
               <button
                 key={value}
                 onClick={() => setHandFilter(value)}
-                style={{
-                  ...styles.button,
-                  ...(handFilter === value ? styles.buttonActive : {}),
-                  ...(value === "left" ? styles.leftHint : {}),
-                }}
+                className={`btn small${handFilter === value ? " active" : ""}`}
               >
                 {label}
               </button>
@@ -297,17 +317,17 @@ export default function Tutorial({ id }: { id: string }) {
           </span>
         )}
 
-        <span style={styles.group}>
-          <button style={styles.button} onClick={addMarker}>
+        <span className="group">
+          <button className="btn small" onClick={addMarker}>
             ＋ Marcador
           </button>
           {markers.map((m, i) => (
-            <span key={`${m.t}-${i}`} style={styles.marker}>
-              <button style={styles.markerJump} onClick={() => seek(m.t)}>
+            <span key={`${m.t}-${i}`} className="marker">
+              <button className="jump" onClick={() => seek(m.t)}>
                 {m.name} {formatTime(m.t)}
               </button>
               <button
-                style={styles.markerRemove}
+                className="remove"
                 onClick={() => removeMarker(i)}
                 aria-label={`Eliminar marcador ${m.name}`}
               >
@@ -320,75 +340,18 @@ export default function Tutorial({ id }: { id: string }) {
 
       <audio
         ref={audioRef}
-        src={audioUrl(id)}
+        src={audioSrc}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
         onEnded={() => setIsPlaying(false)}
         preload="auto"
       />
 
-      <p style={styles.hint}>
+      <p className="hint">
         Espacio: reproducir/pausar · A/B: loop de práctica ·{" "}
         {hasHands ? "verde: mano derecha, azul: izquierda · " : ""}
-        {transcription.notes.length} notas · engine: {transcription.transcription.engine}
+        {transcription.notes.length} notas · {transcription.transcription.engine}
       </p>
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100vh",
-    background: "#0e0e14",
-    color: "#e8e6e0",
-  },
-  canvasContainer: { flex: 1, minHeight: 0 },
-  controls: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.75rem",
-    padding: "0.45rem 1rem",
-    flexWrap: "wrap",
-    borderTop: "1px solid #26262f",
-  },
-  button: {
-    background: "#23232e",
-    color: "#e8e6e0",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: "#3a3a46",
-    borderRadius: 6,
-    padding: "0.4rem 0.8rem",
-    cursor: "pointer",
-    fontSize: "0.9rem",
-  },
-  buttonActive: { background: "#4caf60", borderColor: "#4caf60", color: "#0e0e14" },
-  leftHint: {},
-  time: { fontVariantNumeric: "tabular-nums", fontSize: "0.9rem" },
-  seek: { flex: 1, minWidth: 180 },
-  group: { display: "inline-flex", gap: "0.35rem", flexWrap: "wrap", alignItems: "center" },
-  marker: { display: "inline-flex", alignItems: "stretch" },
-  markerJump: {
-    background: "#1c2a36",
-    color: "#7cbde8",
-    border: "1px solid #2e4a60",
-    borderRight: "none",
-    borderRadius: "6px 0 0 6px",
-    padding: "0.3rem 0.55rem",
-    cursor: "pointer",
-    fontSize: "0.82rem",
-  },
-  markerRemove: {
-    background: "#1c2a36",
-    color: "#8b8b98",
-    border: "1px solid #2e4a60",
-    borderRadius: "0 6px 6px 0",
-    padding: "0.3rem 0.45rem",
-    cursor: "pointer",
-    fontSize: "0.82rem",
-  },
-  message: { padding: "2rem", color: "#e8e6e0", background: "#0e0e14", minHeight: "100vh" },
-  hint: { margin: 0, padding: "0 1rem 0.75rem", fontSize: "0.78rem", color: "#8b8b98" },
-};

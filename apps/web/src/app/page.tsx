@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
+import { useAuth } from "@/components/AuthGate";
 import UploadBox from "@/components/UploadBox";
-import { API_URL, type SongSummary, fetchTranscriptionList } from "@/lib/api";
+import { type JobState, type SongSummary, getDataSource } from "@/lib/data";
+import { API_URL } from "@/lib/data/local";
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -12,212 +14,224 @@ function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+const STATUS_LABEL: Record<JobState["status"], string> = {
+  queued: "En cola — esperando al worker",
+  processing: "Transcribiendo…",
+  done: "Lista",
+  error: "Error",
+};
+
 export default function Home() {
+  const data = getDataSource();
+  const { email, signOut } = useAuth();
   const [items, setItems] = useState<SongSummary[] | null>(null);
+  const [jobs, setJobs] = useState<JobState[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState<string | null>(null);
+  const [cloudReady, setCloudReady] = useState(false);
 
   const reload = useCallback(() => {
-    fetchTranscriptionList()
+    data
+      .listSongs()
       .then((list) => {
         setItems(list);
         setError(null);
       })
       .catch((e: Error) => setError(e.message));
-  }, []);
+    data.listJobs().then(setJobs).catch(() => {});
+  }, [data]);
 
   useEffect(reload, [reload]);
+
+  // Modo local: ¿tiene el backend Supabase configurado para "Publicar"?
+  useEffect(() => {
+    if (data.kind !== "local") return;
+    fetch(`${API_URL}/health`)
+      .then((r) => r.json())
+      .then((h) => setCloudReady(Boolean(h.cloud)))
+      .catch(() => {});
+  }, [data.kind]);
+
+  // En la nube, refrescar solicitudes pendientes cada 10 s.
+  useEffect(() => {
+    if (data.kind !== "cloud") return;
+    if (!jobs.some((j) => j.status === "queued" || j.status === "processing")) return;
+    const t = setInterval(reload, 10000);
+    return () => clearInterval(t);
+  }, [data.kind, jobs, reload]);
 
   const submitRename = async (id: string) => {
     const title = newTitle.trim();
     setRenaming(null);
     if (!title) return;
-    await fetch(`${API_URL}/api/transcriptions/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
-    });
+    await data.renameSong(id, title).catch((e: Error) => setError(e.message));
     reload();
   };
 
   const submitDelete = async (id: string) => {
     setConfirmingDelete(null);
-    await fetch(`${API_URL}/api/transcriptions/${id}`, { method: "DELETE" });
+    await data.deleteSong(id).catch((e: Error) => setError(e.message));
     reload();
   };
 
-  return (
-    <main style={styles.main}>
-      <h1 style={{ marginTop: 0 }}>Piano Tutorial</h1>
-      <p style={styles.subtitle}>Tu biblioteca local de canciones transcritas</p>
+  const publish = async (song: SongSummary) => {
+    setPublishing(song.id);
+    try {
+      const res = await fetch(`${API_URL}/api/transcriptions/${song.id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: song.title }),
+      });
+      if (!res.ok) throw new Error((await res.json()).detail ?? res.statusText);
+    } catch (e) {
+      setError(`No se pudo publicar: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setPublishing(null);
+    }
+  };
 
-      <UploadBox />
+  return (
+    <main className="home">
+      <div className="topbar">
+        <div>
+          <h1>🎹 Piano Tutorial</h1>
+          <p className="subtitle" style={{ margin: 0 }}>
+            {data.kind === "cloud" ? "Tu biblioteca de canciones" : "Biblioteca local (esta PC)"}
+          </p>
+        </div>
+        {email && (
+          <span className="who">
+            {email}
+            <button className="btn small" onClick={() => void signOut()}>
+              Salir
+            </button>
+          </span>
+        )}
+      </div>
+
+      <UploadBox onSubmitted={reload} />
 
       {error && (
-        <div style={styles.error}>
-          <p>No se pudo contactar el backend ({error}).</p>
-          <p>
-            Arráncalo con:{" "}
-            <code>
-              .venv\Scripts\python -m uvicorn app.main:app --app-dir apps\api --port 8010
-            </code>{" "}
-            (API esperada en {API_URL})
-          </p>
+        <div className="notice">
+          <p style={{ margin: 0 }}>{error}</p>
+          {data.kind === "local" && (
+            <p style={{ margin: "0.5rem 0 0" }}>
+              ¿Está corriendo el backend? Arráncalo con:{" "}
+              <code>.venv\Scripts\python -m uvicorn app.main:app --app-dir apps\api --port 8010</code>
+            </p>
+          )}
         </div>
       )}
 
       {items && items.length === 0 && (
-        <p>
-          Aún no hay canciones. Sube una arriba, o desde la terminal:{" "}
-          <code>.venv\Scripts\python scripts\transcribe.py data\samples\cut_liszt.mp3</code>
+        <p className="subtitle">
+          Aún no hay canciones.{" "}
+          {data.kind === "cloud"
+            ? "Sube un audio arriba: se transcribirá cuando el worker esté encendido."
+            : "Sube una arriba o transcribe desde la terminal."}
         </p>
       )}
 
       {items && items.length > 0 && (
-        <ul style={styles.list}>
+        <ul className="song-list">
           {items.map((song) => (
-            <li key={song.id} style={styles.item}>
-              <div style={styles.row}>
-                {renaming === song.id ? (
-                  <form
-                    style={{ flex: 1, display: "flex", gap: "0.5rem" }}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      void submitRename(song.id);
-                    }}
-                  >
-                    <input
-                      autoFocus
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      style={styles.input}
-                      aria-label="Nuevo título"
-                    />
-                    <button type="submit" style={styles.smallButton}>
-                      Guardar
-                    </button>
-                    <button
-                      type="button"
-                      style={styles.smallButton}
-                      onClick={() => setRenaming(null)}
-                    >
-                      Cancelar
-                    </button>
-                  </form>
-                ) : (
-                  <>
-                    <Link href={`/tutorial/${song.id}`} style={styles.link}>
-                      <span style={styles.title}>▶ {song.title}</span>
-                      <span style={styles.meta}>
-                        {formatDuration(song.duration)} · {song.note_count} notas ·{" "}
-                        {song.filename}
-                      </span>
-                    </Link>
-                    {confirmingDelete === song.id ? (
-                      <span style={styles.actions}>
+            <li key={song.id} className="song-item">
+              {renaming === song.id ? (
+                <form
+                  className="rename-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void submitRename(song.id);
+                  }}
+                >
+                  <input
+                    className="input"
+                    autoFocus
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    aria-label="Nuevo título"
+                  />
+                  <button type="submit" className="btn small active">
+                    Guardar
+                  </button>
+                  <button type="button" className="btn small" onClick={() => setRenaming(null)}>
+                    Cancelar
+                  </button>
+                </form>
+              ) : (
+                <>
+                  <Link href={`/tutorial/${song.id}`} className="song-link">
+                    <span className="song-title">▶ {song.title}</span>
+                    <span className="song-meta">
+                      {formatDuration(song.duration)} · {song.note_count} notas
+                    </span>
+                  </Link>
+                  {confirmingDelete === song.id ? (
+                    <span className="song-actions">
+                      <button className="btn small danger" onClick={() => void submitDelete(song.id)}>
+                        Eliminar definitivamente
+                      </button>
+                      <button className="btn small" onClick={() => setConfirmingDelete(null)}>
+                        Cancelar
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="song-actions">
+                      {data.kind === "local" && cloudReady && (
                         <button
-                          style={{ ...styles.smallButton, ...styles.danger }}
-                          onClick={() => void submitDelete(song.id)}
+                          className="btn small"
+                          disabled={publishing === song.id}
+                          onClick={() => void publish(song)}
+                          title="Subir a la nube para verla desde el celular"
                         >
-                          Eliminar definitivamente
+                          {publishing === song.id ? "Publicando…" : "☁ Publicar"}
                         </button>
-                        <button
-                          style={styles.smallButton}
-                          onClick={() => setConfirmingDelete(null)}
-                        >
-                          Cancelar
-                        </button>
-                      </span>
-                    ) : (
-                      <span style={styles.actions}>
-                        <button
-                          style={styles.smallButton}
-                          onClick={() => {
-                            setNewTitle(song.title);
-                            setRenaming(song.id);
-                          }}
-                        >
-                          Renombrar
-                        </button>
-                        <button
-                          style={styles.smallButton}
-                          onClick={() => setConfirmingDelete(song.id)}
-                        >
-                          Eliminar
-                        </button>
-                      </span>
-                    )}
-                  </>
-                )}
-              </div>
+                      )}
+                      <button
+                        className="btn small"
+                        onClick={() => {
+                          setNewTitle(song.title);
+                          setRenaming(song.id);
+                        }}
+                      >
+                        Renombrar
+                      </button>
+                      <button className="btn small" onClick={() => setConfirmingDelete(song.id)}>
+                        Eliminar
+                      </button>
+                    </span>
+                  )}
+                </>
+              )}
             </li>
           ))}
         </ul>
       )}
+
+      {data.kind === "cloud" && jobs.length > 0 && (
+        <>
+          <h2 className="section-title">Solicitudes</h2>
+          {jobs.map((j) => (
+            <div key={j.id} className="request-item">
+              <span style={{ overflowWrap: "anywhere" }}>{j.filename}</span>
+              <span className={`status ${j.status}`}>
+                {j.status === "done" && j.transcriptionId ? (
+                  <Link href={`/tutorial/${j.transcriptionId}`} style={{ color: "inherit" }}>
+                    Lista → abrir
+                  </Link>
+                ) : j.status === "error" ? (
+                  `Error: ${j.error ?? ""}`
+                ) : (
+                  STATUS_LABEL[j.status]
+                )}
+              </span>
+            </div>
+          ))}
+        </>
+      )}
     </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  main: {
-    maxWidth: 780,
-    margin: "0 auto",
-    padding: "2.5rem 1.5rem",
-    minHeight: "100vh",
-    background: "#0e0e14",
-    color: "#e8e6e0",
-  },
-  subtitle: { color: "#8b8b98" },
-  error: {
-    border: "1px solid #7a3b33",
-    background: "#241214",
-    borderRadius: 8,
-    padding: "0.75rem 1rem",
-  },
-  list: { listStyle: "none", padding: 0 },
-  item: { margin: "0.5rem 0" },
-  row: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.75rem",
-    padding: "0.7rem 1rem",
-    background: "#1a1a22",
-    border: "1px solid #2c2c38",
-    borderRadius: 8,
-  },
-  link: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.15rem",
-    color: "#7dd487",
-    textDecoration: "none",
-    minWidth: 0,
-  },
-  title: { fontSize: "1.05rem" },
-  meta: { color: "#8b8b98", fontSize: "0.82rem" },
-  actions: { display: "inline-flex", gap: "0.4rem", flexShrink: 0 },
-  smallButton: {
-    background: "#23232e",
-    color: "#e8e6e0",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderColor: "#3a3a46",
-    borderRadius: 6,
-    padding: "0.3rem 0.6rem",
-    cursor: "pointer",
-    fontSize: "0.82rem",
-  },
-  danger: { borderColor: "#7a3b33", color: "#e08b7d" },
-  input: {
-    flex: 1,
-    background: "#0e0e14",
-    color: "#e8e6e0",
-    border: "1px solid #3a3a46",
-    borderRadius: 6,
-    padding: "0.35rem 0.6rem",
-    fontSize: "0.95rem",
-  },
-};

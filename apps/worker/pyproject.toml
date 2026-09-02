@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "piano-worker"
+version = "0.1.0"
+description = "Publicacion a Supabase y worker de solicitudes (corre en la PC con GPU)"
+requires-python = ">=3.12"
+dependencies = [
+    "supabase>=2.20",
+    "python-dotenv>=1.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["piano_worker*"]
