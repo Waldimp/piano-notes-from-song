@@ -1,0 +1,12 @@
+# Vercel solo necesita apps/web + packages/contracts + package.json/lock de la raiz
+.venv
+ml
+data
+docs
+scripts
+migrations
+apps/api
+apps/worker
+*.pth
+*.mp3
+*.wav
