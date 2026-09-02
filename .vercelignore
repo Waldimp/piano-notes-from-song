@@ -1,12 +1,13 @@
-# Vercel solo necesita apps/web + packages/contracts + package.json/lock de la raiz
-.venv
-ml
-data
-docs
-scripts
-migrations
-apps/api
-apps/worker
+# Vercel solo necesita apps/web + packages/contracts + package.json/lock de la raiz.
+# Rutas ancladas a la raiz (con /) para no excluir p. ej. apps/web/src/lib/data
+/.venv
+/ml
+/data
+/docs
+/scripts
+/migrations
+/apps/api
+/apps/worker
 *.pth
 *.mp3
 *.wav
