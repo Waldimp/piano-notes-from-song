@@ -211,9 +211,15 @@ export default function Home() {
         </ul>
       )}
 
-      {data.kind === "cloud" && jobs.length > 0 && (
+      {data.kind === "cloud" && (
         <>
           <h2 className="section-title">Solicitudes</h2>
+          {jobs.length === 0 && (
+            <p className="subtitle" style={{ fontSize: "0.9rem" }}>
+              No hay solicitudes pendientes. Cuando subas una canción aparecerá aquí con su
+              estado; se transcribe cuando el worker de la PC está encendido.
+            </p>
+          )}
           {jobs.map((j) => (
             <div key={j.id} className="request-item">
               <span style={{ overflowWrap: "anywhere" }}>{j.filename}</span>
