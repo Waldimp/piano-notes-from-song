@@ -13,6 +13,7 @@ import type { Session } from "@supabase/supabase-js";
 
 import { isCloudMode, supabase } from "@/lib/supabase";
 import LoginForm from "./LoginForm";
+import NewPasswordForm from "./NewPasswordForm";
 
 interface AuthValue {
   email: string | null;
@@ -27,12 +28,17 @@ export function useAuth(): AuthValue {
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [recovering, setRecovering] = useState(false);
 
   useEffect(() => {
     if (!isCloudMode) return;
     const sb = supabase();
     sb.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: sub } = sb.auth.onAuthStateChange((_event, s) => setSession(s));
+    const { data: sub } = sb.auth.onAuthStateChange((event, s) => {
+      // Llegada por enlace de "olvidé mi contraseña": pedir la nueva antes de entrar.
+      if (event === "PASSWORD_RECOVERY") setRecovering(true);
+      setSession(s);
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -43,6 +49,9 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   }
   if (!session) {
     return <LoginForm />;
+  }
+  if (recovering) {
+    return <NewPasswordForm onDone={() => setRecovering(false)} />;
   }
 
   const value: AuthValue = {

@@ -432,3 +432,12 @@ code {
     display: none;
   }
 }
+
+.auth-links {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+  font-size: 0.9rem;
+}
