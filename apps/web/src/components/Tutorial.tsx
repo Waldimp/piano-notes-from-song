@@ -15,7 +15,32 @@ import type { PianoTranscription } from "@piano/contracts";
 import { MediaClock, loadSyncOffsetMs, saveSyncOffsetMs } from "@/lib/clock";
 import { getDataSource } from "@/lib/data";
 import { maxDuration } from "@/lib/falling";
-import { type HandFilter, drawFrame } from "@/lib/renderer";
+import { DEFAULT_VIEW_OPTIONS, type HandFilter, type ViewOptions, drawFrame } from "@/lib/renderer";
+
+const VIEW_KEY = "piano:viewOptions";
+/** Opciones del selector "Duración": real, o recorte a N segundos. */
+const DURATION_CAPS: Array<{ label: string; value: number | null }> = [
+  { label: "Real", value: null },
+  { label: "1.5 s", value: 1.5 },
+  { label: "0.8 s", value: 0.8 },
+];
+
+function loadViewOptions(): ViewOptions {
+  try {
+    const raw = localStorage.getItem(VIEW_KEY);
+    return raw ? { ...DEFAULT_VIEW_OPTIONS, ...(JSON.parse(raw) as Partial<ViewOptions>) } : DEFAULT_VIEW_OPTIONS;
+  } catch {
+    return DEFAULT_VIEW_OPTIONS;
+  }
+}
+
+function saveViewOptions(v: ViewOptions): void {
+  try {
+    localStorage.setItem(VIEW_KEY, JSON.stringify(v));
+  } catch {
+    // sin almacenamiento: vive solo en la sesión
+  }
+}
 
 const SPEEDS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5] as const;
 
@@ -62,6 +87,7 @@ export default function Tutorial({ id }: { id: string }) {
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [rotateDismissed, setRotateDismissed] = useState(false);
   const [syncOffsetMs, setSyncOffsetMs] = useState(0);
+  const [view, setView] = useState<ViewOptions>(DEFAULT_VIEW_OPTIONS);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -73,6 +99,7 @@ export default function Tutorial({ id }: { id: string }) {
   // Reloj suavizado: el <audio> manda, pero se interpola entre sus lecturas.
   const clockRef = useRef(new MediaClock());
   const syncOffsetRef = useRef(0);
+  const viewRef = useRef<ViewOptions>(DEFAULT_VIEW_OPTIONS);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +112,9 @@ export default function Tutorial({ id }: { id: string }) {
       })
       .catch((e: Error) => !cancelled && setError(e.message));
     setMarkers(loadMarkers(id));
+    const savedView = loadViewOptions();
+    viewRef.current = savedView;
+    setView(savedView);
     const offset = loadSyncOffsetMs();
     syncOffsetRef.current = offset;
     setSyncOffsetMs(offset);
@@ -164,6 +194,7 @@ export default function Tutorial({ id }: { id: string }) {
         loopA: a,
         loopB: b,
         handFilter: handFilterRef.current,
+        view: viewRef.current,
       });
       setDisplayTime(t);
       raf = requestAnimationFrame(tick);
@@ -224,6 +255,13 @@ export default function Tutorial({ id }: { id: string }) {
     syncOffsetRef.current = next;
     setSyncOffsetMs(next);
     saveSyncOffsetMs(next);
+  };
+
+  const updateView = (patch: Partial<ViewOptions>) => {
+    const next = { ...viewRef.current, ...patch };
+    viewRef.current = next;
+    setView(next);
+    saveViewOptions(next);
   };
 
   const resetSyncOffset = () => {
@@ -363,6 +401,32 @@ export default function Tutorial({ id }: { id: string }) {
             ))}
           </span>
         )}
+
+        <span className="group" role="group" aria-label="Duración de las notas">
+          <span className="group-label">Duración</span>
+          {DURATION_CAPS.map((opt) => (
+            <button
+              key={opt.label}
+              className={`btn small${view.noteDurationCap === opt.value ? " active" : ""}`}
+              onClick={() => updateView({ noteDurationCap: opt.value })}
+              title={
+                opt.value === null
+                  ? "Duración real detectada (con pedal las notas se alargan)"
+                  : `Recortar cada nota a ${opt.value} s para ver menos barras acumuladas`
+              }
+            >
+              {opt.label}
+            </button>
+          ))}
+        </span>
+
+        <button
+          className={`btn small${view.showNoteNames ? " active" : ""}`}
+          onClick={() => updateView({ showNoteNames: !view.showNoteNames })}
+          title="Mostrar los nombres de las notas en teclas y barras"
+        >
+          ABC
+        </button>
 
         <span className="group" role="group" aria-label="Ajuste de sincronía">
           <button

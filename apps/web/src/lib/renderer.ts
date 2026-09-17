@@ -5,8 +5,8 @@
  */
 
 import type { PianoNote } from "@piano/contracts";
-import { isSounding, noteBar, visibleRange } from "./falling";
-import { isBlackKey, keyGeometry } from "./keyboard";
+import { noteBar, visibleRange, visualEnd } from "./falling";
+import { isBlackKey, keyGeometry, noteName } from "./keyboard";
 
 export const KEYBOARD_HEIGHT_RATIO = 0.16;
 export const PIXELS_PER_SECOND = 170;
@@ -19,7 +19,20 @@ const COLORS = {
   keyBorder: "#0a0a0e",
   keyboardLine: "#e05b4b",
   noteBorder: "rgba(0,0,0,0.35)",
+  labelOnWhite: "#3a3a46",
+  labelOnBlack: "#c9c7c0",
+  labelOnBar: "rgba(10, 10, 14, 0.85)",
 };
+
+/** Opciones de visualización del usuario (persisten en el navegador). */
+export interface ViewOptions {
+  /** Duración máxima mostrada por nota, en segundos; null = real. */
+  noteDurationCap: number | null;
+  /** Nombres de las notas (C, D#, …) en teclas y barras. */
+  showNoteNames: boolean;
+}
+
+export const DEFAULT_VIEW_OPTIONS: ViewOptions = { noteDurationCap: 1.5, showNoteNames: true };
 
 /** Colores por mano: derecha/sin mano en verde, izquierda en azul. */
 const HAND_COLORS = {
@@ -47,6 +60,7 @@ export interface FrameState {
   loopA: number | null;
   loopB: number | null;
   handFilter: HandFilter;
+  view: ViewOptions;
 }
 
 export function drawFrame(
@@ -96,13 +110,19 @@ function drawFallingNotes(
   state: FrameState,
   { lo, hi }: { lo: number; hi: number },
 ): void {
-  const { notes, currentTime } = state;
+  const { notes, currentTime, view } = state;
+  const whiteWidth = width / 52;
+  const labelFont = Math.max(8, Math.min(13, whiteWidth * 0.62));
+  ctx.font = `600 ${labelFont}px system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
 
   for (let i = lo; i < hi; i++) {
     const note = notes[i];
-    if (note.end <= currentTime) continue; // ya cayó por completo
+    const end = visualEnd(note, view.noteDurationCap);
+    if (end <= currentTime) continue; // ya cayó por completo
 
-    const bar = noteBar(note, currentTime, keyboardY, PIXELS_PER_SECOND);
+    const bar = noteBar({ start: note.start, end }, currentTime, keyboardY, PIXELS_PER_SECOND);
     const top = Math.max(0, bar.topY);
     const bottom = Math.min(keyboardY, bar.bottomY);
     if (bottom <= top) continue;
@@ -123,6 +143,13 @@ function drawFallingNotes(
     ctx.roundRect(x, top, barWidth, bottom - top, radius);
     ctx.fill();
     ctx.stroke();
+
+    // Nombre en la base de la barra (donde el ojo mira al llegar al teclado),
+    // solo si cabe. Las negras muestran "C#" aunque la barra sea angosta.
+    if (view.showNoteNames && bottom - top >= labelFont + 4 && barWidth >= labelFont * 0.8) {
+      ctx.fillStyle = COLORS.labelOnBar;
+      ctx.fillText(noteName(note.pitch), x + barWidth / 2, bottom - 3, barWidth);
+    }
     ctx.globalAlpha = 1;
   }
 }
@@ -135,12 +162,13 @@ function drawKeyboard(
   state: FrameState,
   { lo, hi }: { lo: number; hi: number },
 ): void {
-  const { notes, currentTime, handFilter } = state;
-  // Teclas que están sonando ahora mismo, con la mano que las toca.
+  const { notes, currentTime, handFilter, view } = state;
+  // Teclas que están sonando ahora mismo, con la mano que las toca. Se usa
+  // el mismo fin visual que las barras para que tecla y barra coincidan.
   const active = new Map<number, "left" | "right">();
   for (let i = lo; i < hi; i++) {
     const n = notes[i];
-    if (!isSounding(n, currentTime)) continue;
+    if (n.start > currentTime || currentTime >= visualEnd(n, view.noteDurationCap)) continue;
     if (handFilter !== "both" && handOf(n) !== handFilter) continue;
     active.set(n.pitch, handOf(n));
   }
@@ -160,11 +188,40 @@ function drawKeyboard(
     ctx.lineWidth = 1;
     ctx.strokeRect(g.x, keyboardY, g.width, keyboardHeight);
   }
+  const blackHeight = keyboardHeight * 0.62;
   for (let pitch = 21; pitch <= 108; pitch++) {
     if (!isBlackKey(pitch)) continue;
     const g = keyGeometry(pitch, width);
     const hand = active.get(pitch);
     ctx.fillStyle = hand ? HAND_COLORS[hand].keyBlack : COLORS.blackKey;
-    ctx.fillRect(g.x, keyboardY, g.width, keyboardHeight * 0.62);
+    ctx.fillRect(g.x, keyboardY, g.width, blackHeight);
+  }
+
+  if (!view.showNoteNames) return;
+
+  // Nombres: letra en la base de cada blanca (las C con octava: C4), y
+  // "C#" al pie de cada negra cuando hay ancho suficiente.
+  const whiteWidth = width / 52;
+  const whiteFont = Math.max(8, Math.min(13, whiteWidth * 0.62));
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillStyle = COLORS.labelOnWhite;
+  ctx.font = `600 ${whiteFont}px system-ui, sans-serif`;
+  for (let pitch = 21; pitch <= 108; pitch++) {
+    if (isBlackKey(pitch)) continue;
+    const g = keyGeometry(pitch, width);
+    const isC = pitch % 12 === 0;
+    const label = noteName(pitch, isC && whiteWidth >= 18);
+    ctx.fillText(label, g.x + g.width / 2, keyboardY + keyboardHeight - 4, g.width - 2);
+  }
+  const blackFont = Math.max(7, Math.min(11, whiteWidth * 0.45));
+  if (whiteWidth >= 14) {
+    ctx.fillStyle = COLORS.labelOnBlack;
+    ctx.font = `600 ${blackFont}px system-ui, sans-serif`;
+    for (let pitch = 21; pitch <= 108; pitch++) {
+      if (!isBlackKey(pitch)) continue;
+      const g = keyGeometry(pitch, width);
+      ctx.fillText(noteName(pitch), g.x + g.width / 2, keyboardY + blackHeight - 3, g.width);
+    }
   }
 }

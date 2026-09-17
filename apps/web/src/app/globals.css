@@ -490,3 +490,9 @@ code {
   font-variant-numeric: tabular-nums;
   min-width: 7.5rem;
 }
+
+.group-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-right: 0.1rem;
+}

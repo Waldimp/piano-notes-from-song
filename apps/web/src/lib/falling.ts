@@ -29,6 +29,16 @@ export function noteBar(
   return { topY, bottomY };
 }
 
+/**
+ * Fin visual de una nota: el modelo alarga las notas hasta que el sonido se
+ * apaga (con pedal, varios segundos), y eso acumula barras y confunde.
+ * `cap` (segundos) recorta la duración mostrada; null = duración real.
+ */
+export function visualEnd(note: Pick<PianoNote, "start" | "end">, cap: number | null): number {
+  if (cap === null) return note.end;
+  return Math.min(note.end, note.start + cap);
+}
+
 /** ¿La nota está sonando en el instante t? (para iluminar la tecla) */
 export function isSounding(
   note: Pick<PianoNote, "start" | "end">,

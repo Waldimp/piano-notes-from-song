@@ -6,6 +6,7 @@ import {
   maxDuration,
   noteBar,
   visibleRange,
+  visualEnd,
 } from "./falling";
 
 const KEYBOARD_Y = 600;
@@ -112,5 +113,18 @@ describe("visibleRange", () => {
   it("cubre notas largas que empezaron antes de la ventana", () => {
     // nota de 2 s que empezó en t-1: sigue sonando y debe verse
     expect(visibleAt(1)).toContainEqual({ start: 0, end: 2 });
+  });
+});
+
+describe("visualEnd", () => {
+  const note = { start: 10, end: 14 }; // 4 s reales (pedal)
+  it("sin límite devuelve el fin real", () => {
+    expect(visualEnd(note, null)).toBe(14);
+  });
+  it("recorta a start + cap cuando la nota es más larga", () => {
+    expect(visualEnd(note, 1.5)).toBe(11.5);
+  });
+  it("no alarga notas más cortas que el límite", () => {
+    expect(visualEnd({ start: 10, end: 10.3 }, 1.5)).toBe(10.3);
   });
 });

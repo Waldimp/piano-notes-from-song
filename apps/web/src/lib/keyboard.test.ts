@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  noteName,
   WHITE_KEY_COUNT,
   isBlackKey,
   isValidPianoPitch,
@@ -100,4 +101,20 @@ describe("isValidPianoPitch", () => {
       expect(isValidPianoPitch(pitch as number)).toBe(expected);
     },
   );
+});
+
+describe("noteName", () => {
+  it.each([
+    [60, "C"], [61, "C#"], [62, "D"], [63, "D#"], [64, "E"], [65, "F"],
+    [66, "F#"], [67, "G"], [68, "G#"], [69, "A"], [70, "A#"], [71, "B"],
+  ])("pitch %p → %p", (pitch, expected) => {
+    expect(noteName(pitch as number)).toBe(expected);
+  });
+
+  it("con octava sigue la convención MIDI (C4 = 60, A0 = 21, C8 = 108)", () => {
+    expect(noteName(60, true)).toBe("C4");
+    expect(noteName(21, true)).toBe("A0");
+    expect(noteName(108, true)).toBe("C8");
+    expect(noteName(70, true)).toBe("A#4");
+  });
 });
