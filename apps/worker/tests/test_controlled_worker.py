@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import sys
 import threading
@@ -16,11 +17,16 @@ from piano_worker.controlled import (  # noqa: E402
     Claim,
     DispatchReceipt,
     StagingSafetyError,
+    ack_or_reconcile_accepted,
     canonical_uuid,
     claim_exact,
     get_staging_client,
+    production_canary_identity_from_env,
     redact_error,
+    reserve_production_canary_spawn,
+    settle_canary_cost,
     staging_identity_from_env,
+    validate_checkpoint,
 )
 from piano_worker.controlled_publisher import CompensablePublisher  # noqa: E402
 from piano_worker.reconciliation import reconcile_candidates  # noqa: E402
@@ -129,8 +135,209 @@ def test_staging_identity_requires_manifest_binding(monkeypatch):
     with pytest.raises(StagingSafetyError): get_staging_client()
 
 
+def test_production_canary_is_exact_and_fail_closed(monkeypatch):
+    for name in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "DATABASE_URL", "SUPABASE_DB_URL",
+                 "STAGING_SUPABASE_URL", "STAGING_SUPABASE_SERVICE_ROLE_KEY",
+                 "STAGING_IDENTITY_MANIFEST", "STAGING_IDENTITY_SHA256", "STAGING_MODAL_DISPATCH_URL"):
+        monkeypatch.delenv(name, raising=False)
+    manifest = {
+        "environment": "production-canary", "supabase_url": "https://prodref.supabase.co",
+        "project_ref": "prodref", "modal_environment": "production-canary",
+        "storage_namespace": "_staging", "modal_dispatch_url": "https://modal.example/canary",
+    }
+    raw = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
+    import hashlib
+    monkeypatch.setenv("PIANO_ENVIRONMENT", "production-canary")
+    monkeypatch.delenv("MODAL_ENVIRONMENT", raising=False)
+    monkeypatch.setenv("PRODUCTION_CANARY_IDENTITY_MANIFEST", raw)
+    monkeypatch.setenv("PRODUCTION_CANARY_IDENTITY_SHA256", hashlib.sha256(raw.encode()).hexdigest())
+    monkeypatch.setenv("PRODUCTION_CANARY_SUPABASE_URL", manifest["supabase_url"])
+    monkeypatch.setenv("PRODUCTION_CANARY_MODAL_DISPATCH_URL", manifest["modal_dispatch_url"])
+    with pytest.raises(StagingSafetyError, match="Modal Environment"):
+        production_canary_identity_from_env()
+    monkeypatch.setenv("MODAL_ENVIRONMENT", "production-canary")
+    with pytest.raises(StagingSafetyError, match="allowlist"):
+        production_canary_identity_from_env()
+    monkeypatch.setenv("DATABASE_URL", "https://generic.invalid")
+    with pytest.raises(StagingSafetyError, match="generic"):
+        production_canary_identity_from_env()
+
+
+def test_production_canary_modal_contract_is_static():
+    modal_file = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
+    for token in ('add_local_dir(REPO_ROOT / "ml"', 'add_local_dir(REPO_ROOT / "apps" / "worker"',
+                  '"scripts" / "production-canary"', 'remote_path="/root/scripts/production-canary"',
+                  'CHECKPOINT_SHA256 =', "validate_checkpoint(CHECKPOINT_PATH, CHECKPOINT_SHA256)",
+                  'gpu="T4"', "retries=0", "min_containers=0", "max_containers=1",
+                  "@modal.concurrent(max_inputs=1)", "requires_proxy_auth=True",
+                  "production-canary", "does not poll Supabase", "cost_reservation_id",
+                  "settle_canary_cost", '"gpu": "T4"'):
+        assert token in modal_file
+
+
+def test_checkpoint_checksum_is_fail_closed(tmp_path):
+    checkpoint = tmp_path / "checkpoint.pth"
+    checkpoint.write_bytes(b"pinned-model")
+    expected = hashlib.sha256(b"pinned-model").hexdigest()
+    validate_checkpoint(checkpoint, expected)
+    with pytest.raises(StagingSafetyError, match="mismatch"):
+        validate_checkpoint(checkpoint, hashlib.sha256(b"other-model").hexdigest())
+
+
+@pytest.mark.parametrize("outcome", ["unauthorized", "stale"])
+def test_canary_spawn_reservation_fails_closed(outcome):
+    client = FakeClient()
+    client.rpc_results["reserve_production_canary_spawn"] = outcome
+    receipt = DispatchReceipt(*ids()[:1], str(uuid.uuid4()), 1, 7, "edge-canary")
+    assert reserve_production_canary_spawn(client, receipt) == outcome
+    assert [name for name, _ in client.calls] == ["reserve_production_canary_spawn"]
+
+
+def test_canary_spawn_reservation_consumes_one_armed_uuid():
+    client = FakeClient()
+    dispatch_id, request_id, *_ = ids()
+    client.rpc_results["reserve_production_canary_spawn"] = "spawn"
+    receipt = DispatchReceipt(dispatch_id, request_id, 1, 7, "edge-canary")
+    assert reserve_production_canary_spawn(client, receipt) == "spawn"
+    assert client.calls[0][0] == "reserve_production_canary_spawn"
+    assert client.calls[0][1]["p_request_id"] == request_id
+
+
+def test_canary_replay_returns_replay_without_second_reservation():
+    client = FakeClient()
+    dispatch_id, request_id, *_ = ids()
+    client.rpc_results["reserve_production_canary_spawn"] = "replay"
+    receipt = DispatchReceipt(dispatch_id, request_id, 1, 7, "edge-canary")
+    assert reserve_production_canary_spawn(client, receipt) == "replay"
+    assert len(client.calls) == 1
+
+
+def test_settle_canary_cost_records_gpu_seconds_and_reservation():
+    client = FakeClient()
+    settle_canary_cost(client, 9, __import__("time").perf_counter() - 1, {"gpu": "T4"})
+    name, params = client.calls[0]
+    assert name == "settle_worker_cost"
+    assert params["p_reservation_id"] == 9
+    assert params["p_gpu_seconds"] > 0
+    assert params["p_metadata"] == {"gpu": "T4"}
+
+
+def test_ack_accepted_is_reconciled_when_ack_persistence_fails():
+    client = FakeClient()
+    client.rpc_results["ack_dispatch"] = False
+    client.rpc_results["reconcile_dispatch"] = "acknowledged"
+    dispatch_id, *_ = ids()
+    ack_or_reconcile_accepted(client, dispatch_id, "edge-canary", "call-123")
+    assert [name for name, _ in client.calls] == ["ack_dispatch", "reconcile_dispatch"]
+    assert client.calls[1][1]["p_observed_state"] == "accepted"
+
+
+def test_canary_dispatch_guard_precedes_reservation_and_reconcile_is_wired():
+    source = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
+    assert "consume_production_canary_uuid" not in source
+    assert source.count("reserve_production_canary_spawn") >= 2
+    assert '"reserve_dispatch_spawn"' not in source
+    assert "ack_or_reconcile_accepted" in source
+
+
+def test_runbook_separates_pre_up_from_post_up_schema():
+    runbook = (ROOT / "docs/PRODUCTION_MIGRATION_READINESS.md").read_text()
+    pre = runbook.split("### PRE-UP", 1)[1].split("### POST-UP", 1)[0]
+    post = runbook.split("### POST-UP", 1)[1].split("## 4.", 1)[0]
+    assert "target_song_id" not in pre
+    assert "worker_control" not in pre
+    assert "target_song_id" in post and "worker_control" in post
+    assert "0003_production_canary_single_uuid.down.sql" in runbook
+    assert "0002_modal_worker_controlled_staging.down.sql" in runbook
+    assert "nunca usar `service_role` para armar" in runbook
+
+
+def test_single_uuid_sql_guard_is_atomic_and_fail_closed():
+    sql = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.sql").read_text()
+    down = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.down.sql").read_text()
+    for token in ("production_canary_arm", "for update", "reserve_production_canary_spawn",
+                  "request_id is distinct from p_request_id", "owner to worker_control_owner",
+                  "grant select, update on public.production_canary_arm to worker_control_owner",
+                  "grant execute on function"):
+        assert token in sql.lower()
+    assert "consume_production_canary_uuid" not in sql.lower()
+    assert "rollback refused" in down.lower()
+
+
+def test_canary_security_definer_owner_and_minimal_privileges():
+    sql = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.sql").read_text().lower()
+    assert sql.count("owner to worker_control_owner") == 2
+    assert "alter role worker_control_owner nosuperuser nologin" in sql
+    assert "revoke all on public.production_canary_arm from public, anon, authenticated, service_role" in sql
+    assert "revoke all on function public.arm_production_canary_uuid(uuid)" in sql
+    assert "revoke all on function public.reserve_production_canary_spawn(uuid,uuid,integer,bigint,text)" in sql
+    assert "grant execute on function public.arm_production_canary_uuid(uuid)\n  to worker_control_admin" in sql
+    assert "grant execute on function public.reserve_production_canary_spawn(uuid,uuid,integer,bigint,text)\n  to service_role" in sql
+
+
+def test_canary_sql_transactional_outcomes_and_concurrency_contract():
+    sql = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.sql").read_text().lower()
+    assert "if v_decision = 'spawn' then" in sql
+    assert "if v_dispatch_state = 'acknowledged' then" in sql
+    assert "return 'unauthorized'" in sql
+    assert "begin;" in sql and "commit;" in sql
+    # The singleton row lock serializes two callers; only the spawn branch updates consumed_at.
+    assert sql.count("set consumed_at = clock_timestamp()") == 1
+
+
+class CanaryReservationModel:
+    """Behavioral oracle for the 0003 singleton lock and dispatch outcomes."""
+    def __init__(self, armed_request):
+        self.armed_request = armed_request
+        self.consumed = False
+        self.states = {}
+        self.lock = threading.Lock()
+
+    def reserve(self, dispatch_id, request_id):
+        with self.lock:
+            state = self.states.get(dispatch_id, "leased")
+            if request_id != self.armed_request:
+                return "unauthorized"
+            if self.consumed:
+                return "replay" if state == "acknowledged" else "unauthorized"
+            if state != "leased":
+                return "stale"
+            self.states[dispatch_id] = "spawning"
+            self.consumed = True
+            return "spawn"
+
+
+def test_canary_oracle_rejects_different_uuid_before_spawn():
+    armed = str(uuid.uuid4())
+    model = CanaryReservationModel(armed)
+    assert model.reserve(str(uuid.uuid4()), str(uuid.uuid4())) == "unauthorized"
+    assert model.consumed is False
+
+
+def test_canary_oracle_stale_and_pre_spawn_failure_do_not_consume():
+    armed = str(uuid.uuid4())
+    model = CanaryReservationModel(armed)
+    dispatch_id = str(uuid.uuid4())
+    model.states[dispatch_id] = "closed"
+    assert model.reserve(dispatch_id, armed) == "stale"
+    assert model.consumed is False
+
+
+def test_canary_oracle_replay_and_concurrency_produce_one_spawn():
+    armed, dispatch_id = str(uuid.uuid4()), str(uuid.uuid4())
+    model = CanaryReservationModel(armed)
+    results = []
+    threads = [threading.Thread(target=lambda: results.append(model.reserve(dispatch_id, armed))) for _ in range(2)]
+    for thread in threads: thread.start()
+    for thread in threads: thread.join()
+    assert results.count("spawn") == 1
+    assert model.consumed is True
+    model.states[dispatch_id] = "acknowledged"
+    assert model.reserve(dispatch_id, armed) == "replay"
+
+
 def test_error_redaction():
-    value = redact_error(RuntimeError("https://secret.invalid/x sb_secret_abcdefghijk"))
+    value = redact_error(RuntimeError("https://secret.invalid/x sb_secret_x"))
     assert "secret.invalid" not in value and "sb_secret_" not in value
 
 
