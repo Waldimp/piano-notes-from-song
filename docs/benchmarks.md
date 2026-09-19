@@ -41,3 +41,40 @@ los mismos archivos antes de cambiar nada.
 | Piano acústico | | | | | | |
 | Audio de estudio | | | | | | |
 | Grabación de celular | | | | | | |
+
+## Modal T4 vs L4 (2026-09-18)
+
+Laboratorio aislado y reproducible en [`benchmarks/modal/`](../benchmarks/modal/README.md). Audio: `El_Carbonero.mp3`, 193.608 s, con el mismo checkpoint y pipeline en ambas GPUs.
+
+| Métrica | T4 Cold | T4 Warm | L4 Cold | L4 Warm |
+|---|---:|---:|---:|---:|
+| Inicio contenedor/scheduling | 9.328 s | — | 13.484 s | — |
+| Carga del modelo | 5.692 s | — | 6.694 s | — |
+| Inferencia neural | 15.076 s | 14.517 s | 15.722 s | 15.102 s |
+| Total cliente | 36.345 s | 16.504 s | 44.231 s | 17.197 s |
+| Costo estimado | $0.00724 | $0.00329 | $0.01137 | $0.00442 |
+| Notas / pedales | 1,356 / 217 | 1,356 / 217 | 1,356 / 217 | 1,356 / 217 |
+| VRAM pico | 0.297 GiB | 0.297 GiB | 0.297 GiB | 0.297 GiB |
+
+Ambas GPUs conservaron duración, estructura, conteos y cero eventos descartados. La salida no fue idéntica byte a byte al baseline local: en L4 se emparejaron 1,352 notas por pitch y orden temporal, con medianas de diferencia de 0.000015 s en onset, 0 s en offset y 0 en velocity. Los máximos quedan distorsionados por cuatro notas sin pareja en cada lado.
+
+**Decisión:** T4 para la prueba inicial del worker cloud. En caliente fue 34.6% más barata y aproximadamente 4.0% más rápida que L4. Modal continúa; RunPod queda como fallback y producción todavía no se migra.
+
+## Modal Worker POC end-to-end (2026-09-18)
+
+Evidencia completa en [`WORKER_POC_RESULT.md`](../benchmarks/modal/WORKER_POC_RESULT.md). Se despachó únicamente el request explícito `19dd7029-759b-4506-95c3-cf4766c71b36`; no hubo polling ni cambios en el worker local.
+
+| Métrica | Resultado |
+|---|---:|
+| Estado | `queued -> processing -> done` |
+| Song ID | `El_Carbonero_modal_poc_19dd7029` |
+| Duración | 193.608 s |
+| Notas / pedales | 1,356 / 217 |
+| Eventos descartados | 0 |
+| Tiempo remoto | 26.663 s |
+| Round-trip cliente | 45.818 s |
+| GPU activa | 37.140 s |
+| Costo exitoso observado | $0.00756416 |
+| Costo total con arranque fallido previo al claim | $0.01036249 |
+
+El primer arranque falló por una ruta de montaje incorrecta antes de acceder a Supabase; el request permaneció `queued`. Tras corregir únicamente el montaje aislado, el POC publicó un contrato válido, eliminó temporales y terminó con cero GPUs/contenedores activos. El resultado autoriza diseñar una migración controlada, no activar producción.

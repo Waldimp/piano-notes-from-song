@@ -1,0 +1,110 @@
+{
+  "benchmark": "piano-modal-benchmark",
+  "created_at_unix": 1789785746.4186037,
+  "baseline": {
+    "audio_s": 193.608,
+    "notes": 1356,
+    "pedals": 217,
+    "audio_sha256": "4FFB99610F58394B77A0C4291AF4C1CE4F45C5193C24C5FD8EBF3DCFEA06D996",
+    "checkpoint_sha256": "C3FA9730725BF4A762F1C14BC80CD5986EACDA01B026F5A4A2525CD607876141"
+  },
+  "runs": [
+    {
+      "gpu": "T4",
+      "calls": [
+        {
+          "container_id": "modal",
+          "container_call_index": 1,
+          "init": {
+            "imports_runtime_s": 4.040332515,
+            "asset_validation_s": 0.5586621309999993,
+            "model_load_s": 5.692353934000001,
+            "container_initialization_s": 10.291909868,
+            "gpu_requested": "T4",
+            "gpu_actual": "Tesla T4",
+            "cuda_runtime": "13.0",
+            "torch": "2.11.0+cu130",
+            "python": "3.12.10",
+            "piano_transcription_inference": "0.0.6",
+            "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+            "audio_sha256": "4FFB99610F58394B77A0C4291AF4C1CE4F45C5193C24C5FD8EBF3DCFEA06D996",
+            "checkpoint_sha256": "C3FA9730725BF4A762F1C14BC80CD5986EACDA01B026F5A4A2525CD607876141"
+          },
+          "audio_s": 193.608,
+          "preprocessing_s": 0.669742844,
+          "inference_s": 15.075825532,
+          "postprocessing_s": 0.9796160920000005,
+          "remote_pipeline_s": 16.725495555000002,
+          "notes": 1356,
+          "pedals": 217,
+          "dropped_events": 0,
+          "peak_vram_gib": 0.29709863662719727,
+          "transcription_sha256": "DE89F43B1FAF661D82BDB4E991EA421A696FAF6F591B41E68CF63FC67279352B",
+          "client_roundtrip_s": 36.34462319999875,
+          "label": "cold",
+          "container_startup_estimate_s": 9.327779064998747,
+          "validation": {
+            "compatible": true,
+            "structure_exact": true,
+            "duration_delta_s": 0.0,
+            "notes_delta": 0,
+            "pedals_delta": 0,
+            "note_pitch_sequence_exact": false,
+            "note_time_max_abs_s": null,
+            "pedal_sequence_aligned": true,
+            "pedal_time_max_abs_s": 3.814697265625e-05
+          }
+        },
+        {
+          "container_id": "modal",
+          "container_call_index": 2,
+          "init": {
+            "imports_runtime_s": 4.040332515,
+            "asset_validation_s": 0.5586621309999993,
+            "model_load_s": 5.692353934000001,
+            "container_initialization_s": 10.291909868,
+            "gpu_requested": "T4",
+            "gpu_actual": "Tesla T4",
+            "cuda_runtime": "13.0",
+            "torch": "2.11.0+cu130",
+            "python": "3.12.10",
+            "piano_transcription_inference": "0.0.6",
+            "ffmpeg": "ffmpeg version 5.1.9-0+deb12u1 Copyright (c) 2000-2026 the FFmpeg developers",
+            "audio_sha256": "4FFB99610F58394B77A0C4291AF4C1CE4F45C5193C24C5FD8EBF3DCFEA06D996",
+            "checkpoint_sha256": "C3FA9730725BF4A762F1C14BC80CD5986EACDA01B026F5A4A2525CD607876141"
+          },
+          "audio_s": 193.608,
+          "preprocessing_s": 0.6870485070000001,
+          "inference_s": 14.517347079999997,
+          "postprocessing_s": 0.9690226450000026,
+          "remote_pipeline_s": 16.173746583,
+          "notes": 1356,
+          "pedals": 217,
+          "dropped_events": 0,
+          "peak_vram_gib": 0.29709863662719727,
+          "transcription_sha256": "DE89F43B1FAF661D82BDB4E991EA421A696FAF6F591B41E68CF63FC67279352B",
+          "client_roundtrip_s": 16.503675799998746,
+          "label": "warm",
+          "validation": {
+            "compatible": true,
+            "structure_exact": true,
+            "duration_delta_s": 0.0,
+            "notes_delta": 0,
+            "pedals_delta": 0,
+            "note_pitch_sequence_exact": false,
+            "note_time_max_abs_s": null,
+            "pedal_sequence_aligned": true,
+            "pedal_time_max_abs_s": 3.814697265625e-05
+          }
+        }
+      ],
+      "warm_container_reused": true,
+      "estimated_billable_seconds": 52.848298999997496,
+      "estimated_gpu_cost_usd": 0.00866712103599959,
+      "estimated_total_resource_cost_usd": 0.010521039364919504,
+      "estimated_warm_cost_per_song_usd": 0.0032855517782637506
+    }
+  ],
+  "estimated_lab_cost_usd": 0.010521039364919504,
+  "cost_method": "Estimacion conservadora: suma del round-trip cliente de cada llamada por las tarifas publicadas de GPU, 2 CPU cores y 4 GiB de memoria. No incluye un cargo observado del dashboard de Modal."
+}

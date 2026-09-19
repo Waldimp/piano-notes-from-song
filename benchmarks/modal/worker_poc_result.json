@@ -1,0 +1,36 @@
+{
+  "processed": true,
+  "request_id": "19dd7029-759b-4506-95c3-cf4766c71b36",
+  "status": "done",
+  "song_id": "El_Carbonero_modal_poc_19dd7029",
+  "audio_bytes": 3217150,
+  "audio_duration_s": 193.608,
+  "notes": 1356,
+  "pedals": 217,
+  "dropped_events": 0,
+  "download_s": 0.9554308890000005,
+  "pipeline_s": 21.137753503000003,
+  "publish_and_verify_s": 2.5764621020000007,
+  "remote_end_to_end_s": 26.662602355999997,
+  "gpu_active_s": 37.139943603,
+  "contract": {
+    "valid": true,
+    "fields_exact": true,
+    "duration_s": 193.608,
+    "notes": 1356,
+    "pedals": 217,
+    "engine": "high-resolution-piano-transcription"
+  },
+  "startup": {
+    "runtime_imports_s": 3.4200249919999997,
+    "model_load_s": 6.554845796,
+    "gpu": "Tesla T4",
+    "torch": "2.11.0+cu130",
+    "python": "3.12.10",
+    "piano_transcription_inference": "0.0.6"
+  },
+  "temporaries_cleaned": true,
+  "client_roundtrip_s": 45.81817679999949,
+  "estimated_gpu_seconds": 37.139943603,
+  "estimated_cost_usd": 0.007393819972485241
+}
