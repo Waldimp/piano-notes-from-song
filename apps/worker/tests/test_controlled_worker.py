@@ -499,6 +499,12 @@ def test_production_canary_dispatcher_defers_unarmed_or_mismatched_uuid_to_trans
     assert "v_arm.request_id is null or v_arm.request_id is distinct from p_request_id" in migration
     assert "create or replace function public.acquire_production_canary_dispatch" in migration
     assert "never searches or chooses from the queue" in migration
+    assert "security definer" in migration
+    assert "set search_path = pg_catalog" in migration
+    assert "d.request_id = p_request_id" in migration
+    assert "d.dispatch_id = v_dispatch.dispatch_id" in migration
+    assert "revoke all on function public.acquire_production_canary_dispatch(uuid,text,bigint,integer)" in migration
+    assert "grant execute on function public.acquire_production_canary_dispatch(uuid,text,bigint,integer)\n  to worker_control_admin" in migration
 
 
 def test_production_canary_modal_web_endpoint_uses_sdk_supported_retry_contract():
@@ -529,11 +535,20 @@ def test_control_plane_owner_membership_is_transaction_scoped_for_supabase_postg
         sql = (ROOT / "migrations/supabase" / name).read_text().lower()
         assert "grant usage, create on schema public to worker_control_owner;" in sql
     sql = (ROOT / "migrations/supabase/0002_modal_worker_controlled_staging.sql").read_text().lower()
-    for policy in (
-        "worker_control_owner_all", "request_attempts_owner_all", "dispatch_outbox_owner_all",
-        "worker_cost_ledger_owner_all", "dispatch_auth_nonces_owner_all",
-    ):
+    policies = (
+        "worker_control_owner_all", "worker_control_events_owner_all",
+        "request_attempts_owner_all", "request_artifacts_owner_all",
+        "dispatch_outbox_owner_all", "worker_cost_ledger_owner_all",
+        "dispatch_reconciliations_owner_all", "dispatch_auth_nonces_owner_all",
+    )
+    for policy in policies:
         assert f"create policy {policy}" in sql
+        assert f"for all to worker_control_owner" in sql.split(f"create policy {policy}", 1)[1].split(";", 1)[0]
+    down_sql = (ROOT / "migrations/supabase/0002_modal_worker_controlled_staging.down.sql").read_text().lower()
+    for policy in policies:
+        assert f"drop policy if exists {policy}" in down_sql
+    canary_down_sql = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.down.sql").read_text().lower()
+    assert "drop function if exists public.acquire_production_canary_dispatch(uuid,text,bigint,integer);" in canary_down_sql
     assert "revoke create on schema public from worker_control_owner;" in sql
     canary_sql = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.sql").read_text().lower()
     assert "alter role worker_control_owner" not in canary_sql

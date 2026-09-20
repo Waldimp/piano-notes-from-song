@@ -71,6 +71,16 @@ drop function if exists public.set_worker_mode(bigint,public.worker_mode,text);
 drop function if exists public.engage_worker_kill_switch(text);
 drop function if exists public.clear_worker_kill_switch(bigint,text);
 
+-- Remove the server-only RLS grants explicitly before removing their tables.
+drop policy if exists worker_control_owner_all on public.worker_control;
+drop policy if exists worker_control_events_owner_all on public.worker_control_events;
+drop policy if exists request_attempts_owner_all on public.request_attempts;
+drop policy if exists request_artifacts_owner_all on public.request_artifacts;
+drop policy if exists dispatch_outbox_owner_all on public.dispatch_outbox;
+drop policy if exists worker_cost_ledger_owner_all on public.worker_cost_ledger;
+drop policy if exists dispatch_reconciliations_owner_all on public.dispatch_reconciliations;
+drop policy if exists dispatch_auth_nonces_owner_all on public.dispatch_auth_nonces;
+
 drop table if exists public.dispatch_reconciliations;
 drop table if exists public.dispatch_auth_nonces;
 drop table if exists public.request_artifacts;

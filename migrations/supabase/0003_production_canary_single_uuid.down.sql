@@ -14,6 +14,7 @@ begin
 end $$;
 
 drop function if exists public.reserve_production_canary_spawn(uuid,uuid,integer,bigint,text);
+drop function if exists public.acquire_production_canary_dispatch(uuid,text,bigint,integer);
 drop function if exists public.arm_production_canary_uuid(uuid);
 drop table if exists public.production_canary_arm;
 revoke set option for worker_control_owner from current_user;

@@ -110,13 +110,13 @@ begin
   if v_control.mode <> 'modal' or v_control.kill_switch or v_control.generation <> p_worker_generation then return; end if;
   select * into v_arm from public.production_canary_arm where singleton = true for update;
   if v_arm.request_id is distinct from p_request_id or v_arm.consumed_at is not null then return; end if;
-  select * into v_dispatch from public.dispatch_outbox where request_id = p_request_id
-    and state = 'pending' and worker_generation = p_worker_generation and available_at <= clock_timestamp()
-    order by attempt_no desc for update skip locked limit 1;
+  select d.* into v_dispatch from public.dispatch_outbox d where d.request_id = p_request_id
+    and d.state = 'pending' and d.worker_generation = p_worker_generation and d.available_at <= clock_timestamp()
+    order by d.attempt_no desc for update skip locked limit 1;
   if not found then return; end if;
-  update public.dispatch_outbox set state = 'leased', lease_owner = p_lease_owner,
+  update public.dispatch_outbox d set state = 'leased', lease_owner = p_lease_owner,
     lease_expires_at = clock_timestamp() + make_interval(secs => p_lease_seconds),
-    delivery_count = delivery_count + 1, updated_at = clock_timestamp() where dispatch_id = v_dispatch.dispatch_id;
+    delivery_count = delivery_count + 1, updated_at = clock_timestamp() where d.dispatch_id = v_dispatch.dispatch_id;
   return query select v_dispatch.dispatch_id, v_dispatch.request_id, v_dispatch.attempt_no, v_dispatch.worker_generation;
 end $$;
 
