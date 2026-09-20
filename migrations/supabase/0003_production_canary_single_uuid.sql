@@ -4,7 +4,7 @@ begin;
 
 -- PostgreSQL requires membership in a target owner role for ALTER OWNER.
 -- The membership is revoked before commit.
-grant worker_control_owner to current_user;
+grant worker_control_owner to current_user with set true;
 grant usage, create on schema public to worker_control_owner;
 
 create table if not exists public.production_canary_arm (
@@ -121,6 +121,6 @@ grant execute on function public.reserve_production_canary_spawn(uuid,uuid,integ
   to service_role;
 
 revoke create on schema public from worker_control_owner;
-revoke worker_control_owner from current_user;
+revoke set option for worker_control_owner from current_user;
 
 commit;

@@ -55,9 +55,9 @@ was compared against the exact migration hashes below:
 | File | SHA-256 |
 | --- | --- |
 | `0002_modal_worker_controlled_staging.sql` | `214899acbba9029e056e46b853459b0bcbe7f642195a1ce753c69ed6c78b8c30` |
-| `0002_modal_worker_controlled_staging.down.sql` | `218526045c199a399058c768b4f74a83ea677c708778585e172e3a29e6ce174e` |
-| `0003_production_canary_single_uuid.sql` | `270eba79c3b60f5a9689f7c12dc023de71a2209fd0ee85b65d9a07b010fe4462` |
-| `0003_production_canary_single_uuid.down.sql` | `8f91ee125669d8549570b9defc57d6f58eaf26f61c7ffd1da9d085c341738a8a` |
+| `0002_modal_worker_controlled_staging.down.sql` | `f2ded7b0c3542e2b7e8a05f1cc4bda7bcef753fba0aba2247080c1cd517c1b20` |
+| `0003_production_canary_single_uuid.sql` | `648f10438a4218dd31b4d3806d44e19662f2659588b2f888dbda42d8450975c4` |
+| `0003_production_canary_single_uuid.down.sql` | `be2cc05891c4a0df0d703911e29886a854d7059f6f117977c3e66177593d8cc2` |
 
 - 0002 expects to extend `public.requests` and `public.songs`, create the
   `worker_*`, attempt, outbox, reconciliation, artifact and nonce objects,
