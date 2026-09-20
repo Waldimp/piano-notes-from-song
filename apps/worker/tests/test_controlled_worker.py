@@ -477,6 +477,16 @@ def test_production_canary_dispatcher_defers_unarmed_or_mismatched_uuid_to_trans
     assert "v_arm.request_id is null or v_arm.request_id is distinct from p_request_id" in migration
 
 
+def test_production_canary_modal_web_endpoint_uses_sdk_supported_retry_contract():
+    """The GPU class is explicitly non-retrying; Modal web endpoints have no retry option."""
+    modal_worker = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
+    assert '@app.cls(\n    gpu="T4"' in modal_worker
+    assert "cpu=2.0, memory=4096, timeout=10 * 60, retries=0," in modal_worker
+    assert "@app.function(image=image, secrets=[canary_secret], timeout=30," in modal_worker
+    endpoint_block = modal_worker.split("@app.function(", 1)[1].split("def dispatch", 1)[0]
+    assert "retries=" not in endpoint_block
+
+
 def test_control_plane_owner_membership_is_transaction_scoped_for_supabase_postgres():
     for name in ("0002_modal_worker_controlled_staging.sql",):
         sql = (ROOT / "migrations/supabase" / name).read_text().lower()

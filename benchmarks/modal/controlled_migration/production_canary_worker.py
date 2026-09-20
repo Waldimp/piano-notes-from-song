@@ -91,7 +91,7 @@ class ControlledT4CanaryWorker:
             settle_canary_cost(client, reservation_id, started_at, {"gpu": "T4"})
 
 
-@app.function(image=image, secrets=[canary_secret], timeout=30, retries=0,
+@app.function(image=image, secrets=[canary_secret], timeout=30,
               min_containers=0, max_containers=1, scaledown_window=2)
 @modal.fastapi_endpoint(method="POST", requires_proxy_auth=True)
 def dispatch(receipt_payload: dict[str, Any]) -> dict[str, Any]:
