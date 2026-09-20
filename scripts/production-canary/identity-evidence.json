@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "purpose": "non-runtime production preflight evidence",
+  "project_ref": "epapmenfnyfqdfmsgfee",
+  "supabase_origin_validated": true,
+  "modal_endpoint": null,
+  "runtime_ready": false,
+  "note": "This file is not consumed by the worker. identity-allowlist.json remains the mandatory fail-closed runtime binding."
+}

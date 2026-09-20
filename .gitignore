@@ -38,3 +38,7 @@ data/library.db
 
 .vercel
 .env*
+
+# Local production-preflight evidence and recovery artifacts.  These may
+# contain database dumps, Storage object maps, or other operational metadata.
+/.local-backups/

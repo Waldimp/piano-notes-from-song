@@ -179,7 +179,7 @@ singleton en `production_canary_arm`; no se autoriza un selector de cola.
 
 Preparar en una máquina segura y con destino explícito: `pg_dump --format=custom
 --no-owner --no-acl`, hash SHA-256 del archivo, prueba de lectura con
-`pg_restore --list`, y restauración en una base aislada. Exportar por separado
+`pg_restore --list`, y conservar su catálogo como evidencia. Exportar por separado
 schema, roles/memberships, grants, policies/RLS, funciones/owners/config y
 extensiones. No imprimir URLs ni secretos. Un dump DB no contiene bytes de
 `storage.objects`; verificar esto y hacer inventario/copia separada de cada
@@ -189,10 +189,12 @@ del manifiesto de objetos. No ejecutar ahora.
 El checkpoint final de mantenimiento debe registrar: hash de dump y snapshot,
 conteos/IDs de requests, `worker_control`, outbox/attempts/leases, ledger,
 listado y hashes de Storage, policies/grants/functions, versión Git y estado
-del worker local. Restore completo: nueva base aislada desde dump, validar
-catálogo, roles y RLS, restaurar objetos Storage por hash, y sólo entonces
-considerar promoción. Restore selectivo: únicamente tablas/funciones aprobadas,
-con dependencias y grants explícitos. La recuperación del worker local es
+del worker local. El ensayo de restore completo en una base aislada no forma
+parte de la validación aprobada para esta fase y debe registrarse como riesgo
+residual. Si se autoriza después, el restore completo debe validar catálogo,
+roles, RLS y objetos Storage por hash antes de considerar promoción. Restore
+selectivo: únicamente tablas/funciones aprobadas, con dependencias y grants
+explícitos. La recuperación del worker local es
 detener dispatcher, dejar `paused/kill=true`, reactivar el worker local por su
 camino legacy y verificar que no usa la ruta canary.
 
@@ -223,8 +225,8 @@ manualmente para vencer una guarda.
 
 GO de preparación local: tests y revisión estática sin bloqueantes, archivos sin
 secretos, diff limpio de formato, allowlist vacía y producción intacta.
-NO-GO para ejecutar: identidad productiva no fijada por MASTER, backups no
-restaurados en aislado, inventario remoto faltante, SQL no revisado contra datos
+NO-GO para ejecutar: identidad productiva no fijada por MASTER, backups sin
+integridad verificada, inventario remoto faltante, SQL no revisado contra datos
 reales, cualquier lease/objeto inesperado, dispatcher/trigger general activo,
 polling, costo no acotado, falta de rollback o cualquier hallazgo Critical/High/
 Medium. Los hallazgos residuales actuales son: no se verificaron datos/roles/
@@ -243,5 +245,5 @@ runbook. Los cambios previos del usuario en `docs/DECISIONS.md` y
 
 Recomendación al MASTER: aceptar el paquete como readiness local, mantener
 **NO-GO** para cualquier ejecución, y exigir primero la revisión de este
-inventario, la identidad exacta, un backup restaurado fuera de producción y una
+inventario, la identidad exacta, un backup con integridad verificada y una
 autorización separada para la ventana.

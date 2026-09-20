@@ -4,7 +4,7 @@ Actualizado: 2026-09-19
 
 ## Fase actual
 
-**Fase 3B — Preparación de migración controlada directa a producción; ejecución no autorizada.** El hardening local terminó con 0 Critical, 0 High y 0 Medium. Se canceló `01E - TEMPORARY STAGING BOOTSTRAP` para no mantener otro proyecto Supabase. Producción permanece en NO-GO hasta completar y aprobar un runbook, backup verificable, inventario SQL, adaptación de las guardas y ensayo de rollback.
+**Fase 3C — Migración controlada directa a producción preparada; ejecución todavía no iniciada.** El hardening local terminó con 0 Critical, 0 High y 0 Medium. `01G - PRODUCTION PREFLIGHT & BACKUP` cerró con GO técnico: baseline compatible, backup PostgreSQL y copia de Storage verificados, inventario SQL completo y rollback preparado. El MASTER consolidó todo el trabajo remoto restante en `02 - CONTROLLED PRODUCTION MIGRATION`, que deberá operar con puntos internos de parada y no habilitará procesamiento general automáticamente.
 
 ## Arquitectura actual
 
@@ -35,11 +35,11 @@ MVP funcional y usado satisfactoriamente. El baseline del repositorio quedó ver
 
 ## Último trabajo completado
 
-2026-09-19: hardening local completado. Se implementaron identidad fail-closed, autorización HMAC server-to-server, cierre de mass assignment/ownership, revalidación antes de spawn, reconciliación durable, publisher resistente a I/O ambiguo, rollback seguro y roles `SECURITY DEFINER` endurecidos. La revisión estática final cerró con 0 Critical, 0 High y 0 Medium. No se accedió a cloud ni a producción.
+2026-09-19: `01G - PRODUCTION PREFLIGHT & BACKUP` cerrado con GO técnico. Se confirmó PostgreSQL 17.6, tres requests `done`, cero `processing`, ausencia de colisiones con 0002/0003 y baseline compatible. El dump custom de PostgreSQL mide 298,246 bytes, tiene SHA-256 `c5f6e392516b75bba8569ac80f99b6ce0a5afb177b354471f04f6a5e2da950ad` y pasó `pg_restore --list`. Se respaldaron seis objetos de Storage por 8,184,488 bytes; el manifiesto tiene SHA-256 `4952a0fc76587f41470f67ddf51f35d870206489b1a363c395b96e8cc87a78ad`. No se ensayó un restore completo; ese riesgo residual fue aceptado. Producción no fue modificada.
 
 ## Trabajo en curso
 
-Ejecución remota en pausa. `01E - TEMPORARY STAGING BOOTSTRAP` quedó cancelado. `00 - PRODUCT SCALE MASTER` conserva la orquestación y prepara una migración directa, breve y reversible sobre el proyecto existente. `01F - PRODUCTION MIGRATION READINESS` dejó inventario SQL, adaptación `production-canary`, pruebas y runbooks en [`docs/PRODUCTION_MIGRATION_READINESS.md`](PRODUCTION_MIGRATION_READINESS.md). No se ha autorizado aplicar SQL, desplegar dispatcher/worker, cargar secrets nuevos, iniciar GPU ni procesar requests.
+Ejecución remota en pausa hasta iniciar explícitamente `02 - CONTROLLED PRODUCTION MIGRATION`. Ese único hilo concentrará precheck final, mantenimiento, 0002/0003, validación, despliegue cerrado de Modal, un canary, dos o tres canaries adicionales como máximo y rollback si aparece una inconsistencia. No se ha aplicado SQL, desplegado dispatcher/worker, iniciado GPU ni procesado requests en esta fase. El procesamiento general de la cola sigue desautorizado.
 
 ## Fase 3 reorganizada
 
@@ -50,30 +50,30 @@ Ejecución remota en pausa. `01E - TEMPORARY STAGING BOOTSTRAP` quedó cancelado
 3. Mantener intactos producción, el worker local funcional, frontend, Storage y jobs reales.
 4. Ejecutar una segunda revisión estática. Sólo un resultado sin bloqueantes permite pasar a 3B.
 
-### Fase 3B — Readiness para producción controlada
+### Fase 3B — Readiness para producción controlada — completada
 
 Sin tocar infraestructura remota:
 
 1. Inventariar cada objeto que crea, altera, reemplaza o elimina la migración UP/DOWN, incluyendo grants, RLS, triggers, funciones `SECURITY DEFINER`, índices y policies de Storage.
 2. Adaptar localmente las guardas que hoy fijan `staging`: identidad exacta del proyecto productivo, un Modal Environment dedicado a canaries, nombres de variables y allowlist/fingerprint revisados. No se permite eliminar la validación fail-closed ni reutilizar variables genéricas.
-3. Preparar backup lógico restaurable de PostgreSQL, inventario y copia de los objetos Storage afectados, export de configuración/policies y hashes; documentar y ensayar la restauración fuera de producción cuando sea posible.
+3. Preparar backup lógico verificable de PostgreSQL, inventario y copia de los objetos Storage afectados, export de configuración/policies y hashes; validar la integridad del dump mediante `pg_restore --list`. El ensayo completo de restauración queda como riesgo residual explícito aceptado, no como requisito de esta fase.
 4. Preparar runbook minuto a minuto, queries de invariantes, criterios de aborto, responsables y ventana de mantenimiento.
 5. Ejecutar revisión final de seguridad y operación. Sólo entonces el MASTER puede autorizar la ventana.
 
-### Fase 3C — Cambio productivo cerrado por defecto
+### Fase 3C — `02 - CONTROLLED PRODUCTION MIGRATION`
 
-Durante una ventana corta de mantenimiento:
+Un único hilo ejecutará durante una ventana corta de mantenimiento, con STOP interno ante cualquier inconsistencia:
 
 1. detener nuevas altas de trabajo y dejar la cola estable;
 2. apagar el polling del worker local, conservándolo listo como fallback;
 3. tomar y verificar el checkpoint final de DB y Storage;
-4. aplicar una sola vez la migración revisada con `worker_control.mode='paused'`, kill switch activo, dispatcher desactivado y gasto reservado en cero;
+4. aplicar 0002 y luego 0003 una sola vez; 0002 debe crear `worker_control.mode='paused'` y `kill_switch=true`, condición que se valida inmediatamente antes de continuar;
 5. validar catálogo, grants, RLS, RPCs, estado de filas, rutas canónicas y denegación de `_staging` antes de desplegar o ejecutar GPU;
 6. desplegar Modal T4 en un Environment canary dedicado con `min_containers=0`, `max_containers=1`, `max_inputs=1`, `retries=0`, Proxy Auth y sin polling;
 7. desplegar el dispatcher sin trigger automático y mantenerlo deshabilitado;
 8. armar exclusivamente un UUID real seleccionado, habilitar el camino de una sola invocación y ejecutar un canary;
 9. validar DB, RLS, Storage, hashes, logs, costo, ownership, ausencia de duplicados y cero recursos activos;
-10. si pasa, ejecutar sólo 2–4 UUID adicionales, uno por vez y con validación completa entre cada uno;
+10. si pasa, ejecutar sólo 2–3 UUID adicionales, uno por vez y con validación completa entre cada uno;
 11. volver a modo seguro. No habilitar procesamiento general de la cola.
 
 ### Fase 3D — Decisión posterior
@@ -82,7 +82,7 @@ Presentar evidencia al MASTER. El éxito de los canaries no autoriza consumo gen
 
 ## Necesario frente a sobreingeniería
 
-**Necesario aun con una sola usuaria:** identidad de producción exacta y fail-closed, Modal Environment canary separado, dispatcher autenticado y desactivado por defecto, campos server-owned, ownership inmutable, claim común, un único UUID armado, reconciliación acotada de estados ambiguos, publicación idempotente/compensable, exclusión `_staging`, kill switch, tope de gasto, backup verificado y rollback probado.
+**Necesario aun con una sola usuaria:** identidad de producción exacta y fail-closed, Modal Environment canary separado, dispatcher autenticado y desactivado por defecto, campos server-owned, ownership inmutable, claim común, un único UUID armado, reconciliación acotada de estados ambiguos, publicación idempotente/compensable, exclusión `_staging`, kill switch, tope de gasto, backup verificado y rollback preparado.
 
 **No necesario ahora:** proyecto Supabase staging separado, staging permanente, 20 canaries por cuota fija, multi-región, más de una GPU concurrente, polling cloud, canary continuo, plataforma completa de alertas/SRE, autoscaling complejo, R2, pricing/rate limiting comercial, múltiples workers o rotación automatizada sofisticada.
 
@@ -92,12 +92,12 @@ Presentar evidencia al MASTER. El éxito de los canaries no autoriza consumo gen
 
 ## Ruta mínima a una posible migración productiva
 
-Inventario y adaptación local → backup/restore verificado → revisión final → autorización de ventana → mantenimiento → checkpoint final → migración con kill switch y dispatcher apagados → validación DB/RLS/Storage sin GPU → deploy canary cerrado → un UUID explícito → validación → 2–4 canaries adicionales como máximo → volver a estado seguro → informe al MASTER. El procesamiento general permanece desautorizado.
+01G cerrado → iniciar un único hilo 02 autorizado → precheck final → mantenimiento → checkpoint final → 0002/0003 → comprobar `paused` y kill switch activo → validación DB/RLS/Storage sin GPU → deploy canary cerrado → un UUID explícito → validación → 2–3 canaries adicionales como máximo → volver a estado seguro → informe al MASTER. El procesamiento general permanece desautorizado.
 
 ## Siguiente tarea
 
-Revisar los entregables de `01F` y mantener el resultado en **NO-GO** hasta que MASTER apruebe expresamente la identidad productiva exacta, un backup restaurado fuera de producción y una ventana de mantenimiento. No aplicar migraciones, desplegar servicios, iniciar GPU ni procesar requests.
+Cerrar en Git los cambios locales de 01G y preparar el prompt definitivo de `02 - CONTROLLED PRODUCTION MIGRATION`. La migración no debe comenzar hasta que el MASTER inicie expresamente ese hilo. El restore completo no se ensayó y permanece como riesgo residual aceptado. El éxito de los canaries tampoco autoriza procesamiento general.
 
 ## Blockers
 
-La implementación endurecida está fijada a staging y no puede desplegarse directamente en producción. Antes de autorizar una ventana deben existir: backup de DB y objetos Storage con restauración verificable, inventario SQL exacto, adaptación fail-closed revisada, migración UP/DOWN compatible con datos reales, queries pre/post, dispatcher apagado por defecto, selección del UUID canary, observabilidad/costo, procedimiento de rollback y revisión final sin bloqueantes. La ausencia de cualquiera implica NO-GO.
+No quedan bloqueantes técnicos de preflight: identidad Supabase, catálogo productivo, backup PostgreSQL, copia de Storage, hashes y compatibilidad de 0002/0003 fueron verificados. Permanecen como condiciones operativas dentro de 02: baseline sin cambios, cierre de nuevas altas, worker local disponible, migraciones con hashes exactos, creación y validación inmediata de `paused`/kill switch, endpoint Modal y allowlist revisados antes del deploy, dispatcher sin trigger general y selección de un UUID canary. La allowlist sigue vacía y fail-closed hasta disponer del endpoint real. Los cambios locales de 01G aún no tienen commit. Cualquier cambio del baseline o incumplimiento de estas condiciones obliga a STOP.
