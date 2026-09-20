@@ -2,6 +2,10 @@
 -- Exactly one row may be armed. Reservation and consumption are one transaction.
 begin;
 
+-- PostgreSQL requires membership in a target owner role for ALTER OWNER.
+-- The membership is revoked before commit.
+grant worker_control_owner to current_user;
+
 create table if not exists public.production_canary_arm (
   singleton boolean primary key default true check (singleton),
   request_id uuid,
@@ -114,5 +118,7 @@ grant execute on function public.arm_production_canary_uuid(uuid)
   to worker_control_admin;
 grant execute on function public.reserve_production_canary_spawn(uuid,uuid,integer,bigint,text)
   to service_role;
+
+revoke worker_control_owner from current_user;
 
 commit;

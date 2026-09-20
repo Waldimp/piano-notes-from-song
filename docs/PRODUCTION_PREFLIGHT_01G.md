@@ -54,10 +54,10 @@ was compared against the exact migration hashes below:
 
 | File | SHA-256 |
 | --- | --- |
-| `0002_modal_worker_controlled_staging.sql` | `3b60618122c3933a2f95c5fa1ad4cbec1e0dda4887f8ff2013efdd14bed73cca` |
-| `0002_modal_worker_controlled_staging.down.sql` | `ed03d3d1b407b7b75d31dca4c0778923f5b3f8ba6fb3afac77acfcf2f6a95ef5` |
-| `0003_production_canary_single_uuid.sql` | `2ed497c5e5f9c28289f5a86132fdf4002fc49e9e71b4b6f0c0bb91a8b9414a2a` |
-| `0003_production_canary_single_uuid.down.sql` | `9090500c997c723945764756ba6e35fc503522a08a7ead402ae6085a1e846918` |
+| `0002_modal_worker_controlled_staging.sql` | `a285b839f16d6dc4e839cbc7476cc87c586821c18a27f2d8c59e7c6ef0f9a499` |
+| `0002_modal_worker_controlled_staging.down.sql` | `218526045c199a399058c768b4f74a83ea677c708778585e172e3a29e6ce174e` |
+| `0003_production_canary_single_uuid.sql` | `69c2e8110d65596c9e0893e0d1179b5bbe3d3187a1abadd0a692332f35639985` |
+| `0003_production_canary_single_uuid.down.sql` | `8f91ee125669d8549570b9defc57d6f58eaf26f61c7ffd1da9d085c341738a8a` |
 
 - 0002 expects to extend `public.requests` and `public.songs`, create the
   `worker_*`, attempt, outbox, reconciliation, artifact and nonce objects,

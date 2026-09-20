@@ -12,6 +12,10 @@ begin
   end if;
 end $$;
 
+-- PostgreSQL requires membership in a target owner role for ALTER OWNER.
+-- The membership is revoked before commit.
+grant worker_control_owner to current_user;
+
 do $$
 begin
   if not exists (
@@ -1411,5 +1415,7 @@ grant execute on function public.claim_request(uuid,text,uuid,integer,bigint,int
   public.reconcile_dispatch(uuid,text,text,text)
   , public.consume_dispatch_auth_nonce(uuid,timestamptz)
   to service_role;
+
+revoke worker_control_owner from current_user;
 
 commit;

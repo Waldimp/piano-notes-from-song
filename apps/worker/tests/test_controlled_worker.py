@@ -472,3 +472,15 @@ def test_production_canary_dispatcher_defers_unarmed_or_mismatched_uuid_to_trans
     assert "decision = reserve_production_canary_spawn(client, receipt)" in modal_worker
     assert "if decision == \"unauthorized\":" in modal_worker
     assert "v_arm.request_id is null or v_arm.request_id is distinct from p_request_id" in migration
+
+
+def test_control_plane_owner_membership_is_transaction_scoped_for_supabase_postgres():
+    for name in (
+        "0002_modal_worker_controlled_staging.sql",
+        "0002_modal_worker_controlled_staging.down.sql",
+        "0003_production_canary_single_uuid.sql",
+        "0003_production_canary_single_uuid.down.sql",
+    ):
+        sql = (ROOT / "migrations/supabase" / name).read_text().lower()
+        assert "grant worker_control_owner to current_user;" in sql
+        assert "revoke worker_control_owner from current_user;" in sql

@@ -1,6 +1,8 @@
 -- Rollback for 0002_modal_worker_controlled_staging.sql. Staging only.
 begin;
 
+grant worker_control_owner to current_user;
+
 -- Rollback is fail-closed.  Never remove the control metadata while a staged
 -- object, active attempt, or durable dispatch receipt still needs it for
 -- reconciliation.  The transaction aborts before any DROP in that case.
@@ -116,5 +118,6 @@ drop type if exists public.worker_mode;
 -- make rollback non-deterministic. A platform administrator may remove them
 -- after verifying pg_shdepend is empty.
 revoke all on schema public from worker_control_admin, worker_control_owner;
+revoke worker_control_owner from current_user;
 
 commit;
