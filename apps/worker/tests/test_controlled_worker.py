@@ -280,7 +280,7 @@ def test_single_uuid_sql_guard_is_atomic_and_fail_closed():
 
 def test_canary_security_definer_owner_and_minimal_privileges():
     sql = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.sql").read_text().lower()
-    assert sql.count("owner to worker_control_owner") == 2
+    assert sql.count("owner to worker_control_owner") == 3
     assert "create role worker_control_owner nologin" in (
         ROOT / "migrations/supabase/0002_modal_worker_controlled_staging.sql"
     ).read_text().lower()
