@@ -482,6 +482,13 @@ def test_production_canary_dispatcher_is_explicit_and_fail_closed():
     assert '.from("dispatch_outbox")' not in dispatcher
 
 
+def test_production_canary_dispatcher_never_reads_supabase_runtime_builtins():
+    dispatcher = (ROOT / "supabase/functions/dispatch-modal-staging/index.ts").read_text()
+    for builtin in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_URL"):
+        assert f'"{builtin}"' not in dispatcher
+    assert 'createClient(required("PRODUCTION_CANARY_SUPABASE_URL")' in dispatcher
+
+
 def test_production_canary_dispatcher_defers_unarmed_or_mismatched_uuid_to_transactional_gate():
     dispatcher = (ROOT / "supabase/functions/dispatch-modal-staging/index.ts").read_text()
     modal_worker = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
