@@ -1,4 +1,13 @@
 {
   "version": 1,
-  "entries": []
+  "entries": [
+    {
+      "environment": "production-canary",
+      "supabase_url": "https://epapmenfnyfqdfmsgfee.supabase.co",
+      "project_ref": "epapmenfnyfqdfmsgfee",
+      "modal_environment": "production-canary",
+      "storage_namespace": "_staging",
+      "modal_dispatch_url": "https://waltermejia61-production-canary--piano-controlled-worker-a7a7df.modal.run"
+    }
+  ]
 }

@@ -161,7 +161,7 @@ def _identity_from_env(*, environment: str, prefix: str, allowlist_name: str) ->
     if parsed.hostname != f"{identity.project_ref}.supabase.co":
         raise StagingSafetyError("staging URL and project reference do not match")
     modal_url = urlparse(identity.modal_dispatch_url)
-    if modal_url.scheme != "https" or not modal_url.hostname or modal_url.path in ("", "/"):
+    if modal_url.scheme != "https" or not modal_url.hostname:
         raise StagingSafetyError("staging Modal endpoint must be an exact HTTPS endpoint")
     if modal_url.query or modal_url.fragment:
         raise StagingSafetyError("staging Modal endpoint cannot contain query or fragment data")

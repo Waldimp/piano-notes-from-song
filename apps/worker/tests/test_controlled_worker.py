@@ -163,6 +163,20 @@ def test_production_canary_is_exact_and_fail_closed(monkeypatch):
         production_canary_identity_from_env()
 
 
+def test_production_canary_accepts_exactly_allowlisted_modal_root_endpoint(monkeypatch):
+    allowlist_path = ROOT / "scripts" / "production-canary" / "identity-allowlist.json"
+    manifest = json.loads(allowlist_path.read_text(encoding="utf-8"))["entries"][0]
+    raw = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
+    import hashlib
+    monkeypatch.setenv("PIANO_ENVIRONMENT", "production-canary")
+    monkeypatch.setenv("MODAL_ENVIRONMENT", "production-canary")
+    monkeypatch.setenv("PRODUCTION_CANARY_IDENTITY_MANIFEST", raw)
+    monkeypatch.setenv("PRODUCTION_CANARY_IDENTITY_SHA256", hashlib.sha256(raw.encode()).hexdigest())
+    monkeypatch.setenv("PRODUCTION_CANARY_SUPABASE_URL", manifest["supabase_url"])
+    monkeypatch.setenv("PRODUCTION_CANARY_MODAL_DISPATCH_URL", manifest["modal_dispatch_url"])
+    assert production_canary_identity_from_env().modal_dispatch_url == manifest["modal_dispatch_url"]
+
+
 def test_production_canary_modal_contract_is_static():
     modal_file = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
     for token in ('add_local_dir(REPO_ROOT / "ml"', 'add_local_dir(REPO_ROOT / "apps" / "worker"',

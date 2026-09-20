@@ -3,7 +3,7 @@
   "purpose": "non-runtime production preflight evidence",
   "project_ref": "epapmenfnyfqdfmsgfee",
   "supabase_origin_validated": true,
-  "modal_endpoint": null,
-  "runtime_ready": false,
+  "modal_endpoint": "https://waltermejia61-production-canary--piano-controlled-worker-a7a7df.modal.run",
+  "runtime_ready": true,
   "note": "This file is not consumed by the worker. identity-allowlist.json remains the mandatory fail-closed runtime binding."
 }
