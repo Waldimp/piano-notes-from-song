@@ -5,8 +5,14 @@ import { assertProductionCanaryEnvironment } from "./environment-guard.mjs";
 
 type Receipt = { dispatch_id: string; request_id: string; attempt_no: number; worker_generation: number; lease_owner: string };
 
-// Intentionally empty until the real production-canary endpoint is reviewed.
-const REVIEWED_PRODUCTION_CANARY_IDENTITIES: Array<Record<string, unknown>> = [];
+const REVIEWED_PRODUCTION_CANARY_IDENTITIES: Array<Record<string, unknown>> = [{
+  environment: "production-canary",
+  supabase_url: "https://epapmenfnyfqdfmsgfee.supabase.co",
+  project_ref: "epapmenfnyfqdfmsgfee",
+  modal_environment: "production-canary",
+  storage_namespace: "_staging",
+  modal_dispatch_url: "https://waltermejia61-production-canary--piano-controlled-worker-a7a7df.modal.run",
+}];
 
 const required = (name: string): string => {
   const value = Deno.env.get(name);

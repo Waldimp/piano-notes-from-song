@@ -476,6 +476,7 @@ def test_production_canary_dispatcher_is_explicit_and_fail_closed():
     assert "REVIEWED_PRODUCTION_CANARY_IDENTITIES" in dispatcher
     assert "PRODUCTION_CANARY_MODAL_PROXY_KEY" in dispatcher
     assert "consume_dispatch_auth_nonce" in dispatcher
+    assert 'modal_dispatch_url: "https://waltermejia61-production-canary--piano-controlled-worker-a7a7df.modal.run"' in dispatcher
     assert "acquire_dispatch_slot" not in dispatcher
     assert '.from("requests")' not in dispatcher
     assert '.from("dispatch_outbox")' not in dispatcher
