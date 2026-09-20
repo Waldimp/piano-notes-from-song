@@ -442,7 +442,33 @@ def test_sql_and_modal_guards_are_present():
                   "@modal.concurrent(max_inputs=1)", "requires_proxy_auth=True"):
         assert token in modal_file
     dispatcher = (ROOT / "supabase/functions/dispatch-modal-staging/index.ts").read_text()
-    for token in ("STAGING_DISPATCH_SHARED_SECRET", "x-staging-dispatch-signature",
-                  "x-staging-dispatch-nonce", "STAGING_IDENTITY_MANIFEST", "lease_owner",
-                  "REVIEWED_STAGING_IDENTITIES"):
+    for token in ("PRODUCTION_CANARY_DISPATCH_SHARED_SECRET",
+                  "x-production-canary-dispatch-signature",
+                  "x-production-canary-dispatch-nonce", "PRODUCTION_CANARY_IDENTITY_MANIFEST",
+                  "lease_owner", "REVIEWED_PRODUCTION_CANARY_IDENTITIES"):
         assert token in dispatcher
+
+
+def test_production_canary_dispatcher_is_explicit_and_fail_closed():
+    dispatcher = (ROOT / "supabase/functions/dispatch-modal-staging/index.ts").read_text()
+    assert 'required("PIANO_ENVIRONMENT") !== "production-canary"' in dispatcher
+    assert 'assertProductionCanaryEnvironment(Deno.env.toObject())' in dispatcher
+    assert 'const expected = ["attempt_no", "dispatch_id", "lease_owner", "request_id", "worker_generation"]' in dispatcher
+    assert "an explicit complete receipt is required" in dispatcher
+    assert "reserve_production_canary_spawn transactionally" in dispatcher
+    assert "REVIEWED_PRODUCTION_CANARY_IDENTITIES" in dispatcher
+    assert "PRODUCTION_CANARY_MODAL_PROXY_KEY" in dispatcher
+    assert "consume_dispatch_auth_nonce" in dispatcher
+    assert "acquire_dispatch_slot" not in dispatcher
+    assert '.from("requests")' not in dispatcher
+    assert '.from("dispatch_outbox")' not in dispatcher
+
+
+def test_production_canary_dispatcher_defers_unarmed_or_mismatched_uuid_to_transactional_gate():
+    dispatcher = (ROOT / "supabase/functions/dispatch-modal-staging/index.ts").read_text()
+    modal_worker = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
+    migration = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.sql").read_text()
+    assert "reserve_production_canary_spawn transactionally before spawn" in dispatcher
+    assert "decision = reserve_production_canary_spawn(client, receipt)" in modal_worker
+    assert "if decision == \"unauthorized\":" in modal_worker
+    assert "v_arm.request_id is null or v_arm.request_id is distinct from p_request_id" in migration
