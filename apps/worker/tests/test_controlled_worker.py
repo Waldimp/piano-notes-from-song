@@ -480,6 +480,7 @@ def test_production_canary_dispatcher_defers_unarmed_or_mismatched_uuid_to_trans
 def test_production_canary_modal_web_endpoint_uses_sdk_supported_retry_contract():
     """The GPU class is explicitly non-retrying; Modal web endpoints have no retry option."""
     modal_worker = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
+    assert '"fastapi[standard]"' in modal_worker
     assert '@app.cls(\n    gpu="T4"' in modal_worker
     assert "cpu=2.0, memory=4096, timeout=10 * 60, retries=0," in modal_worker
     assert "@app.function(image=image, secrets=[canary_secret], timeout=30," in modal_worker

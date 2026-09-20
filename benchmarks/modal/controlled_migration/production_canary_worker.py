@@ -31,6 +31,7 @@ image = modal.Image.debian_slim(python_version="3.12").apt_install("ffmpeg").pip
     "piano_transcription_inference==0.0.6", "librosa==1.0.0",
     "torchlibrosa==0.1.0", "soundfile==0.14.0", "mido==1.3.3",
     "matplotlib==3.11.1", "audioread==3.1.0", "supabase==2.31.0",
+    "fastapi[standard]",
 ).env({"PYTHONPATH": "/root/ml:/root/apps/worker", "PIANO_ENVIRONMENT": MODAL_ENVIRONMENT})
 if modal.is_local():
     image = image.add_local_dir(REPO_ROOT / "ml", remote_path="/root/ml")
