@@ -267,7 +267,10 @@ def test_single_uuid_sql_guard_is_atomic_and_fail_closed():
 def test_canary_security_definer_owner_and_minimal_privileges():
     sql = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.sql").read_text().lower()
     assert sql.count("owner to worker_control_owner") == 2
-    assert "alter role worker_control_owner nosuperuser nologin" in sql
+    assert "create role worker_control_owner nologin" in (
+        ROOT / "migrations/supabase/0002_modal_worker_controlled_staging.sql"
+    ).read_text().lower()
+    assert "alter role worker_control_owner" not in sql
     assert "revoke all on public.production_canary_arm from public, anon, authenticated, service_role" in sql
     assert "revoke all on function public.arm_production_canary_uuid(uuid)" in sql
     assert "revoke all on function public.reserve_production_canary_spawn(uuid,uuid,integer,bigint,text)" in sql
@@ -491,3 +494,5 @@ def test_control_plane_owner_membership_is_transaction_scoped_for_supabase_postg
         sql = (ROOT / "migrations/supabase" / name).read_text().lower()
         assert "grant usage, create on schema public to worker_control_owner;" in sql
         assert "revoke create on schema public from worker_control_owner;" in sql
+    canary_sql = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.sql").read_text().lower()
+    assert "alter role worker_control_owner" not in canary_sql

@@ -56,7 +56,7 @@ was compared against the exact migration hashes below:
 | --- | --- |
 | `0002_modal_worker_controlled_staging.sql` | `214899acbba9029e056e46b853459b0bcbe7f642195a1ce753c69ed6c78b8c30` |
 | `0002_modal_worker_controlled_staging.down.sql` | `f2ded7b0c3542e2b7e8a05f1cc4bda7bcef753fba0aba2247080c1cd517c1b20` |
-| `0003_production_canary_single_uuid.sql` | `648f10438a4218dd31b4d3806d44e19662f2659588b2f888dbda42d8450975c4` |
+| `0003_production_canary_single_uuid.sql` | `abaa2cdea3dc5bfd912eff500578c7a67373dd313a32ebcf3c4787b3fe24dc7b` |
 | `0003_production_canary_single_uuid.down.sql` | `be2cc05891c4a0df0d703911e29886a854d7059f6f117977c3e66177593d8cc2` |
 
 - 0002 expects to extend `public.requests` and `public.songs`, create the

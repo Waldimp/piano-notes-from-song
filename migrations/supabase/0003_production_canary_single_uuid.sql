@@ -102,7 +102,6 @@ create policy production_canary_arm_owner_update on public.production_canary_arm
 -- The SECURITY DEFINER owner receives only the table privileges needed by the
 -- two functions. The service role can invoke reservation but cannot arm/read
 -- the singleton directly.
-alter role worker_control_owner nosuperuser nologin;
 revoke all on public.production_canary_arm from public, anon, authenticated, service_role;
 grant select, update on public.production_canary_arm to worker_control_owner;
 
