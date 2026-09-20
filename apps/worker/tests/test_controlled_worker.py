@@ -497,6 +497,8 @@ def test_production_canary_dispatcher_defers_unarmed_or_mismatched_uuid_to_trans
     assert "decision = reserve_production_canary_spawn(client, receipt)" in modal_worker
     assert "if decision == \"unauthorized\":" in modal_worker
     assert "v_arm.request_id is null or v_arm.request_id is distinct from p_request_id" in migration
+    assert "create or replace function public.acquire_production_canary_dispatch" in migration
+    assert "never searches or chooses from the queue" in migration
 
 
 def test_production_canary_modal_web_endpoint_uses_sdk_supported_retry_contract():
@@ -526,6 +528,12 @@ def test_control_plane_owner_membership_is_transaction_scoped_for_supabase_postg
     for name in ("0002_modal_worker_controlled_staging.sql", "0003_production_canary_single_uuid.sql"):
         sql = (ROOT / "migrations/supabase" / name).read_text().lower()
         assert "grant usage, create on schema public to worker_control_owner;" in sql
-        assert "revoke create on schema public from worker_control_owner;" in sql
+    sql = (ROOT / "migrations/supabase/0002_modal_worker_controlled_staging.sql").read_text().lower()
+    for policy in (
+        "worker_control_owner_all", "request_attempts_owner_all", "dispatch_outbox_owner_all",
+        "worker_cost_ledger_owner_all", "dispatch_auth_nonces_owner_all",
+    ):
+        assert f"create policy {policy}" in sql
+    assert "revoke create on schema public from worker_control_owner;" in sql
     canary_sql = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.sql").read_text().lower()
     assert "alter role worker_control_owner" not in canary_sql

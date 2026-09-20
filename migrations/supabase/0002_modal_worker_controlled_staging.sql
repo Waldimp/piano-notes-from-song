@@ -1264,6 +1264,26 @@ alter table public.worker_cost_ledger enable row level security;
 alter table public.dispatch_reconciliations enable row level security;
 alter table public.dispatch_auth_nonces enable row level security;
 
+-- SECURITY DEFINER control-plane functions run as worker_control_owner.  This
+-- role is deliberately not the table owner, so it needs RLS access while all
+-- client roles remain denied direct access.
+create policy worker_control_owner_all on public.worker_control
+  for all to worker_control_owner using (true) with check (true);
+create policy worker_control_events_owner_all on public.worker_control_events
+  for all to worker_control_owner using (true) with check (true);
+create policy request_attempts_owner_all on public.request_attempts
+  for all to worker_control_owner using (true) with check (true);
+create policy request_artifacts_owner_all on public.request_artifacts
+  for all to worker_control_owner using (true) with check (true);
+create policy dispatch_outbox_owner_all on public.dispatch_outbox
+  for all to worker_control_owner using (true) with check (true);
+create policy worker_cost_ledger_owner_all on public.worker_cost_ledger
+  for all to worker_control_owner using (true) with check (true);
+create policy dispatch_reconciliations_owner_all on public.dispatch_reconciliations
+  for all to worker_control_owner using (true) with check (true);
+create policy dispatch_auth_nonces_owner_all on public.dispatch_auth_nonces
+  for all to worker_control_owner using (true) with check (true);
+
 revoke all on public.worker_control, public.worker_control_events,
   public.request_attempts, public.request_artifacts, public.dispatch_outbox,
   public.worker_cost_ledger, public.dispatch_reconciliations

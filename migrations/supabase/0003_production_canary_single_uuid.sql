@@ -91,6 +91,35 @@ begin
   return v_decision;
 end $$;
 
+-- Lease only the explicitly armed UUID.  Unlike acquire_dispatch_slot this
+-- function never searches or chooses from the queue.
+create or replace function public.acquire_production_canary_dispatch(
+  p_request_id uuid, p_lease_owner text, p_worker_generation bigint,
+  p_lease_seconds integer default 30
+)
+returns table(dispatch_id uuid, request_id uuid, attempt_no integer, worker_generation bigint)
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+declare v_control public.worker_control%rowtype; v_arm public.production_canary_arm%rowtype;
+declare v_dispatch public.dispatch_outbox%rowtype;
+begin
+  if p_request_id is null or p_lease_owner !~ '^[A-Za-z0-9._:-]{1,120}$' then return; end if;
+  select * into strict v_control from public.worker_control where singleton = true for update;
+  if v_control.mode <> 'modal' or v_control.kill_switch or v_control.generation <> p_worker_generation then return; end if;
+  select * into v_arm from public.production_canary_arm where singleton = true for update;
+  if v_arm.request_id is distinct from p_request_id or v_arm.consumed_at is not null then return; end if;
+  select * into v_dispatch from public.dispatch_outbox where request_id = p_request_id
+    and state = 'pending' and worker_generation = p_worker_generation and available_at <= clock_timestamp()
+    order by attempt_no desc for update skip locked limit 1;
+  if not found then return; end if;
+  update public.dispatch_outbox set state = 'leased', lease_owner = p_lease_owner,
+    lease_expires_at = clock_timestamp() + make_interval(secs => p_lease_seconds),
+    delivery_count = delivery_count + 1, updated_at = clock_timestamp() where dispatch_id = v_dispatch.dispatch_id;
+  return query select v_dispatch.dispatch_id, v_dispatch.request_id, v_dispatch.attempt_no, v_dispatch.worker_generation;
+end $$;
+
 alter table public.production_canary_arm enable row level security;
 drop policy if exists production_canary_arm_owner_select on public.production_canary_arm;
 drop policy if exists production_canary_arm_owner_update on public.production_canary_arm;
@@ -109,15 +138,21 @@ alter function public.arm_production_canary_uuid(uuid)
   owner to worker_control_owner;
 alter function public.reserve_production_canary_spawn(uuid,uuid,integer,bigint,text)
   owner to worker_control_owner;
+alter function public.acquire_production_canary_dispatch(uuid,text,bigint,integer)
+  owner to worker_control_owner;
 
 revoke all on function public.arm_production_canary_uuid(uuid)
   from public, anon, authenticated, service_role;
 revoke all on function public.reserve_production_canary_spawn(uuid,uuid,integer,bigint,text)
   from public, anon, authenticated;
+revoke all on function public.acquire_production_canary_dispatch(uuid,text,bigint,integer)
+  from public, anon, authenticated, service_role;
 grant execute on function public.arm_production_canary_uuid(uuid)
   to worker_control_admin;
 grant execute on function public.reserve_production_canary_spawn(uuid,uuid,integer,bigint,text)
   to service_role;
+grant execute on function public.acquire_production_canary_dispatch(uuid,text,bigint,integer)
+  to worker_control_admin;
 
 revoke create on schema public from worker_control_owner;
 revoke set option for worker_control_owner from current_user;
