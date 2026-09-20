@@ -15,6 +15,7 @@ end $$;
 -- PostgreSQL requires membership in a target owner role for ALTER OWNER.
 -- The membership is revoked before commit.
 grant worker_control_owner to current_user;
+grant usage, create on schema public to worker_control_owner;
 
 do $$
 begin
@@ -1416,6 +1417,7 @@ grant execute on function public.claim_request(uuid,text,uuid,integer,bigint,int
   , public.consume_dispatch_auth_nonce(uuid,timestamptz)
   to service_role;
 
+revoke create on schema public from worker_control_owner;
 revoke worker_control_owner from current_user;
 
 commit;

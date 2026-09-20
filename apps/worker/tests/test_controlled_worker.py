@@ -484,3 +484,7 @@ def test_control_plane_owner_membership_is_transaction_scoped_for_supabase_postg
         sql = (ROOT / "migrations/supabase" / name).read_text().lower()
         assert "grant worker_control_owner to current_user;" in sql
         assert "revoke worker_control_owner from current_user;" in sql
+    for name in ("0002_modal_worker_controlled_staging.sql", "0003_production_canary_single_uuid.sql"):
+        sql = (ROOT / "migrations/supabase" / name).read_text().lower()
+        assert "grant usage, create on schema public to worker_control_owner;" in sql
+        assert "revoke create on schema public from worker_control_owner;" in sql
