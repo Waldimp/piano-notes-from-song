@@ -7,9 +7,17 @@ import { useAuth } from "@/components/AuthGate";
 import UsageBanner, { type UsageInfo } from "@/components/UsageBanner";
 import { supabase } from "@/lib/supabase";
 
+type SubRow = {
+  product_code: string;
+  status: string;
+  current_period_ends_at: string | null;
+};
+
 export default function AccountPage() {
   const { email } = useAuth();
   const [usage, setUsage] = useState<UsageInfo | null>(null);
+  const [subs, setSubs] = useState<SubRow[]>([]);
+  const [billingEnabled, setBillingEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -17,18 +25,32 @@ export default function AccountPage() {
       const { data } = await supabase().auth.getSession();
       const token = data.session?.access_token;
       if (!token) return;
-      const res = await fetch("/api/usage", {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: "no-store",
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setError(body.error ?? "Failed to load usage");
+      const [usageRes, billingRes] = await Promise.all([
+        fetch("/api/usage", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        }),
+        fetch("/api/billing/status", {
+          headers: { Authorization: `Bearer ${token}` },
+          cache: "no-store",
+        }),
+      ]);
+      const usageBody = await usageRes.json().catch(() => ({}));
+      if (!usageRes.ok) {
+        setError(usageBody.error ?? "Failed to load usage");
         return;
       }
-      setUsage(body.usage as UsageInfo);
+      setUsage(usageBody.usage as UsageInfo);
+
+      const billingBody = await billingRes.json().catch(() => ({}));
+      if (billingRes.ok) {
+        setBillingEnabled(Boolean(billingBody.billing_enabled));
+        setSubs((billingBody.subscriptions as SubRow[]) ?? []);
+      }
     })();
   }, []);
+
+  const activeSub = subs.find((s) => s.status === "active" || s.status === "past_due");
 
   return (
     <main className="home">
@@ -39,9 +61,14 @@ export default function AccountPage() {
             {email}
           </p>
         </div>
-        <Link className="btn small" href="/">
-          Back
-        </Link>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <Link className="btn small" href="/pricing">
+            Pricing
+          </Link>
+          <Link className="btn small" href="/">
+            Back
+          </Link>
+        </div>
       </div>
 
       <UsageBanner />
@@ -60,11 +87,37 @@ export default function AccountPage() {
           {usage.credit_balance <= 0 && (
             <p>
               You&apos;ve used your free tutorials.{" "}
-              <strong>Upgrade — coming soon</strong>
+              <Link href="/pricing">View pricing</Link>
             </p>
           )}
         </section>
       )}
+
+      <section style={{ marginTop: "1.25rem" }}>
+        <h2>Subscription</h2>
+        {activeSub ? (
+          <ul>
+            <li>Status: {activeSub.status}</li>
+            <li>Product: {activeSub.product_code}</li>
+            <li>
+              Renewal / period end:{" "}
+              {activeSub.current_period_ends_at
+                ? new Date(activeSub.current_period_ends_at).toLocaleString()
+                : "—"}
+            </li>
+          </ul>
+        ) : (
+          <p className="subtitle">
+            {billingEnabled
+              ? "No active paid subscription."
+              : "Payments setup in progress."}
+          </p>
+        )}
+        <p className="subtitle">
+          Cancel / manage: not available until Wompi recurrent subscriber lifecycle
+          is confirmed.
+        </p>
+      </section>
     </main>
   );
 }

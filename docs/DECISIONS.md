@@ -104,4 +104,11 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Fecha:** 2026-09-21
 **Decisión:** Preparar beta cerrada con aislamiento RLS por usuario, entitlements/créditos internos (sin PSP), FREE 3×60s, límites por plan en `plan_limits`, create-request server-side y rate/concurrency básicos en Postgres.
 **Motivo:** La app era multi-usuario autenticado con policies `using (true)`; para beta real hace falta separación de datos y cuotas sin todavía integrar pagos.
-**Estado:** Vigente. Ver [`BETA_READINESS.md`](BETA_READINESS.md). Pagos, branding y R2 siguen fuera de alcance.
+**Estado:** Vigente. Ver [`BETA_READINESS.md`](BETA_READINESS.md). Branding y R2 siguen fuera de alcance. Pagos: ver DEC-014.
+
+## DEC-014
+
+**Fecha:** 2026-09-21
+**Decisión:** Integrar Wompi El Salvador como único payment processor vía `POST /EnlacePago` (pagos únicos) y preparar `POST /EnlacePagoRecurrente` (suscripciones), sin captura de tarjeta en nuestro frontend. Créditos/entitlements permanecen en Postgres; webhooks fall-closed con HMAC `wompi_hash` + confirmación `GET /TransaccionCompra/{id}`.
+**Motivo:** Necesitamos cobros reales en SV sin rediseñar el ledger beta; la UI alojada por Wompi evita PAN/CVV en Pianissimo.
+**Estado:** Vigente — preparación en código (`0012`, `/api/billing/*`). Mini Pack listo para sandbox. Practice/Plus feature-flagged hasta confirmar lifecycle de renovación/cancelación de suscriptores en docs Wompi. Ver [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md).

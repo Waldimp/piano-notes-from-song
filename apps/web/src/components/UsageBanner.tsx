@@ -74,7 +74,7 @@ export default function UsageBanner({ refreshKey = 0 }: { refreshKey?: number })
       {remaining <= 0 && (
         <p style={{ margin: "0.35rem 0 0" }}>
           You&apos;ve used your free tutorials.{" "}
-          <span className="subtitle">Upgrade — coming soon</span>
+          <Link href="/pricing">View pricing</Link>
         </p>
       )}
     </div>

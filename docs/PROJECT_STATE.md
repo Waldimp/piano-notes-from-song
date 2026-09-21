@@ -4,48 +4,45 @@ Actualizado: 2026-09-21
 
 ## Fase actual
 
-**Beta Readiness — aislamiento + créditos + límites (sin pagos).** El procesamiento Modal general permanece; se añadió ownership RLS, entitlements, ledger de créditos de usuario y create-request server-side.
+**Wompi billing preparation** sobre Beta Readiness. Modal general intacto. Créditos/entitlements siguen en Postgres; Wompi es solo PSP.
 
 ### Estado operativo
 
-- Migrations 0002–0011 en producción (0011 beta readiness).
-- Modal T4 `production-canary`: `mode=modal`, `kill_switch=false`, min=0/max=1/max_inputs=1/retries=0.
-- Wake primario: `POST /api/create-request` → `wakeDispatchNext` (también `/api/wake-dispatch`).
-- Recovery: cron Hobby diario `/api/dispatch-wake`.
-- FREE: 3 créditos, 60 s máx; planes mini/practice/plus en `plan_limits`.
-- Worker local como fallback.
+- Migrations 0002–0012 en producción (0012 Wompi billing prep).
+- Modal T4 `production-canary`: `mode=modal`, `kill_switch=false`.
+- Wake primario: create-request → wake-dispatch; cron Hobby = recovery.
+- FREE 3×60s; Mini Pack checkout preparado (`BILLING_ENABLED` default off).
+- Practice/Plus: catálogo + UI, subscriptions bloqueadas hasta lifecycle Wompi.
 
 ## Arquitectura actual
 
 - Web Next.js (Vercel) + Supabase Auth/Postgres/Storage.
-- Browser: upload a `uploads/{uid}/…`; create/créditos/duración vía API server.
-- Control plane → Modal T4; sin polling desde Modal.
-- User credit ledger ≠ worker cost ledger.
+- Billing: `/api/billing/checkout` → EnlacePago; webhook HMAC + TransaccionCompra → settle.
+- User credit ledger ≠ worker cost ledger ≠ Wompi.
 
-Detalle: [`BETA_READINESS.md`](BETA_READINESS.md), [`MODAL_GENERAL_PROCESSING.md`](MODAL_GENERAL_PROCESSING.md).
+Detalle: [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md), [`BETA_READINESS.md`](BETA_READINESS.md).
 
 ## Stack
 
 - Next.js 15, React 19, TypeScript, Canvas 2D.
 - Python 3.12, FastAPI, PyTorch 2.11.0 + CUDA 12.8, FFmpeg.
-- Vercel, Supabase, Modal T4, SQLite local.
+- Vercel, Supabase, Modal T4, Wompi (sandbox pending credentials).
 
 ## Estado del producto
 
-MVP cloud listo para beta cerrada multiusuario con cuotas. Pagos no integrados.
+Beta cerrada multiusuario con cuotas. Pagos: código listo, sin credenciales reales ni cobros.
 
 ## Decisiones activas
 
 - Preservar MVP; escalar por fases.
-- Web/PWA antes que nativas.
-- Modal T4 + worker local fallback; sin polling Modal.
+- Wompi vía EnlacePago (no 3DS propio).
 - Créditos por tutorial; reproducción sin costo de crédito.
-- R2 / branding / pagos: pendientes.
+- R2 / branding / Terms: pendientes.
 
 ## Último trabajo completado
 
-2026-09-21: Beta Readiness (RLS por owner, entitlements, créditos, rate/concurrency, create-request, UX mínima).
+2026-09-21: Preparación Wompi (0012, checkout/webhook, /pricing, tests, docs).
 
 ## Siguiente tarea
 
-Integrar pagos (MoR), Terms/Privacy, y validar beta con 10–20 usuarios externos.
+Aplicar 0012 + credenciales sandbox Wompi; E2E Mini Pack desarrollo; Terms/Privacy.

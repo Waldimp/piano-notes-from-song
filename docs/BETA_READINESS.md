@@ -55,9 +55,13 @@ Después: `requested_by = auth.uid()` / `owner_id = auth.uid()`; Storage uploads
 python scripts/production-canary/admin_set_entitlement.py --user-id <uuid> --plan mini --credits 5
 ```
 
-## Pendiente antes de pagos
+## Pagos
 
-- Stripe/Paddle/MoR
+Proveedor elegido: **Wompi El Salvador**. Preparación en [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md) (migration 0012). Sin cobros hasta sandbox + `BILLING_ENABLED`.
+
+## Pendiente
+
+- Credenciales sandbox Wompi + E2E Mini Pack
 - Terms/Privacy
 - Rate limits más finos / CAPTCHA
 - Branding
