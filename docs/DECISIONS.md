@@ -90,4 +90,11 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Fecha:** 2026-09-21
 **Decisión:** Cerrar `02 - CONTROLLED PRODUCTION MIGRATION` tras un único canary production-canary validado end-to-end en Modal T4.
 **Motivo:** El UUID `ceec6e6e-29ac-4289-bf06-61b967140817` llegó a `done` mediante Supabase → Modal T4 → Storage, con un único song, duración `193.608 s`, 1,356 notas, 217 pedales y cero eventos descartados. Se verificaron ownership, hashes, artifacts, `_staging=0`, outbox/leases cerrados, costo settled y cero recursos activos.
-**Estado:** Vigente. Completada. El sistema queda `paused` con kill switch activo; dispatcher sin trigger general, 0 GPU/contenedores activos, worker local disponible como fallback y procesamiento general Modal pendiente de autorización. Deuda no bloqueante: los retries posteriores a compensación pueden requerir reutilización formal de rutas `cleaned`; no se implementó por la escala actual.
+**Estado:** SUPERSEDED por DEC-012. Se conserva como historial del cierre canary. El procesamiento general Modal quedó autorizado y validado por DEC-012.
+
+## DEC-012
+
+**Fecha:** 2026-09-21
+**Decisión:** Habilitar procesamiento Modal general controlado reutilizando outbox + `acquire_next_modal_dispatch` + Edge Function wake + Modal T4 existente, sin polling desde Modal y conservando el worker local como fallback.
+**Motivo:** El canary demostró el pipeline end-to-end; el gap era solo la selección server-side de UUIDs elegibles y un despertador autenticado. Tres jobs reales (incluyendo prueba de pausa) completaron `done` con un song cada uno, sin `_staging`, outbox cerrada y GPU en cero al finalizar.
+**Estado:** Vigente. Operativo con `mode=modal`, `kill_switch=false`, hard stop USD 20, `max_containers=1`, retries automáticos deshabilitados. Deuda: wake por cron (~1 min), naming histórico `dispatch-modal-staging`/`production-canary`.
