@@ -199,6 +199,12 @@ def test_production_canary_smoke_is_packaged_with_the_worker_image():
     assert "get_production_canary_client" not in smoke
 
 
+def test_claim_request_column_resolution_is_pinned_for_its_output_name():
+    migration = (ROOT / "migrations/supabase/0005_fix_claim_request_resolution.sql").read_text()
+    assert "create or replace function public.claim_request" in migration
+    assert "#variable_conflict use_column" in migration
+
+
 def test_checkpoint_checksum_is_fail_closed(tmp_path):
     checkpoint = tmp_path / "checkpoint.pth"
     checkpoint.write_bytes(b"pinned-model")
