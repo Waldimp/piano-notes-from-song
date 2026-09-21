@@ -507,6 +507,39 @@ def test_production_canary_dispatcher_defers_unarmed_or_mismatched_uuid_to_trans
     assert "grant execute on function public.acquire_production_canary_dispatch(uuid,text,bigint,integer)\n  to worker_control_admin" in migration
 
 
+def test_failed_pre_attempt_canary_reconciliation_is_exact_and_fail_closed():
+    migration = (ROOT / "migrations/supabase/0004_reconcile_failed_pre_attempt_canary.sql").read_text()
+    down = (ROOT / "migrations/supabase/0004_reconcile_failed_pre_attempt_canary.down.sql").read_text()
+    assert "create table public.failed_pre_attempt_reconciliations" in migration
+    assert "primary key (dispatch_id, observation_id)" in migration
+    assert "create or replace function public.reconcile_failed_before_attempt" in migration
+    assert "security definer" in migration
+    assert "set search_path = pg_catalog" in migration
+    assert "v_control.mode <> 'paused' or not v_control.kill_switch" in migration
+    assert "v_dispatch.request_id is distinct from p_request_id" in migration
+    assert "v_dispatch.state <> 'acknowledged'" in migration
+    assert "v_dispatch.modal_call_id is distinct from p_modal_call_id" in migration
+    assert "q.id = p_request_id and q.status = 'queued'" in migration
+    assert "a.dispatch_id = p_dispatch_id" in migration
+    assert "a.request_id = p_request_id" in migration
+    assert "reservation.kind = 'reservation'" in migration
+    assert "released.kind = 'release'" in migration
+    assert "state = 'pending', lease_owner = null, lease_expires_at = null" in migration
+    assert "modal_call_id = null, acknowledged_at = null" in migration
+    assert "last_error = 'failed before attempt: checkpoint missing'" in migration
+    assert "reconciliation_count = d.reconciliation_count + 1" in migration
+    assert "and r.observation_id = left(p_observation_id, 200) for update" in migration
+    assert "from public, anon, authenticated, service_role" in migration
+    assert "grant select, insert, update on public.failed_pre_attempt_reconciliations to worker_control_owner" in migration
+    assert "create policy requests_control_owner_select on public.requests" in migration
+    assert "create policy requests_control_owner_update on public.requests" in migration
+    assert "to worker_control_admin" in migration
+    assert "drop function if exists public.reconcile_failed_before_attempt" in down
+    assert "drop policy if exists failed_pre_attempt_reconciliations_owner_all" in down
+    assert "drop policy if exists requests_control_owner_select on public.requests" in down
+    assert "drop policy if exists requests_control_owner_update on public.requests" in down
+
+
 def test_production_canary_modal_web_endpoint_uses_sdk_supported_retry_contract():
     """The GPU class is explicitly non-retrying; Modal web endpoints have no retry option."""
     modal_worker = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
