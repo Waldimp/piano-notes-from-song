@@ -92,6 +92,34 @@ class ControlledT4CanaryWorker:
             settle_canary_cost(client, reservation_id, started_at, {"gpu": "T4"})
 
 
+@app.function(
+    gpu="T4", image=image, volumes={"/assets": assets}, timeout=5 * 60,
+    retries=0, min_containers=0, max_containers=1, scaledown_window=2,
+)
+def smoke_t4() -> dict[str, Any]:
+    """Exercise the production-canary image without touching its control plane."""
+    import hashlib
+
+    import torch
+    from piano_ml.engines.high_resolution import HighResolutionEngine
+
+    if not torch.cuda.is_available():
+        raise RuntimeError("CUDA is unavailable on the requested T4")
+    stat = CHECKPOINT_PATH.stat()
+    digest = hashlib.sha256(CHECKPOINT_PATH.read_bytes()).hexdigest().upper()
+    if digest != CHECKPOINT_SHA256:
+        raise RuntimeError("checkpoint SHA-256 mismatch")
+    engine = HighResolutionEngine(checkpoint_path=CHECKPOINT_PATH, device="cuda")
+    engine._ensure_model()
+    return {
+        "cuda": True,
+        "cuda_device": torch.cuda.get_device_name(0),
+        "checkpoint_bytes": stat.st_size,
+        "checkpoint_sha256": digest,
+        "runtime_import": HighResolutionEngine.__module__,
+    }
+
+
 @app.function(image=image, secrets=[canary_secret], timeout=30,
               min_containers=0, max_containers=1, scaledown_window=2)
 @modal.fastapi_endpoint(method="POST", requires_proxy_auth=True)

@@ -189,6 +189,16 @@ def test_production_canary_modal_contract_is_static():
         assert token in modal_file
 
 
+def test_production_canary_smoke_is_packaged_with_the_worker_image():
+    modal_file = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
+    smoke = modal_file.split("def smoke_t4", 1)[0].rsplit("@app.function", 1)[1]
+    assert 'gpu="T4"' in smoke
+    assert 'volumes={"/assets": assets}' in smoke
+    assert "from piano_ml.engines.high_resolution import HighResolutionEngine" in smoke
+    assert "benchmarks" not in smoke
+    assert "get_production_canary_client" not in smoke
+
+
 def test_checkpoint_checksum_is_fail_closed(tmp_path):
     checkpoint = tmp_path / "checkpoint.pth"
     checkpoint.write_bytes(b"pinned-model")
