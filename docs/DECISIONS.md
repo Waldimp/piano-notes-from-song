@@ -64,7 +64,7 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Decisión:** Diseñar la migración del worker a Modal con despacho explícito por UUID y conservar el worker local como fallback; no habilitar todavía polling cloud ni tráfico de producción.
 **Motivo:** El POC completó un request real de Supabase por $0.00756416, pero confirmó que descarga, publicación de objetos, `upsert` de `songs` y transición final del request son efectos distribuidos. Antes de operar continuamente se necesitan idempotencia, compensación observable, límites de gasto y rollback.
 **Alternativas:** Activar inmediatamente un consumidor continuo en Modal; mantener indefinidamente la PC como único worker.
-**Estado:** Hardening local aprobado por seguridad el 2026-09-19 tras una revisión final con 0 Critical, 0 High y 0 Medium. La ruta de proyecto staging separado fue cancelada y sustituida por DEC-009. Producción continúa desautorizada hasta otra aprobación explícita.
+**Estado:** SUPERSEDED en la autorización de producción por DEC-011. Se conserva como historial: hardening local aprobado por seguridad el 2026-09-19 tras una revisión final con 0 Critical, 0 High y 0 Medium. La ruta de proyecto staging separado fue cancelada y sustituida por DEC-009. La prohibición de polling cloud y de procesamiento general sigue vigente a través de DEC-011.
 
 ## DEC-009
 
@@ -73,7 +73,7 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Motivo:** La aplicación es privada, tiene prácticamente una usuaria, tolera una ventana breve y conserva el worker local como fallback. Mantener otro proyecto Supabase sólo para esta validación consumiría la capacidad gratuita disponible o introduciría un costo desproporcionado para la etapa actual.
 **Guardas obligatorias:** backup lógico verificable de DB; inventario y copia de Storage afectado; inventario SQL exacto; kill switch activo después de crear el control mediante 0002; dispatcher desactivado y sin trigger general; worker local preservado; migración reversible; validación DB/RLS/Storage antes de GPU; Modal T4 con `min_containers=0`, `max_containers=1`, `max_inputs=1`, `retries=0`; cero polling; un UUID armado; monitoreo de costo/estados/objetos/logs; aborto y rollback ante cualquier inconsistencia; procesamiento general de la cola desautorizado.
 **Alternativas:** proyecto staging temporal; upgrade de Supabase; mantener indefinidamente el worker local; usar branching/preview cuando el costo y la escala lo justifiquen.
-**Estado:** Readiness completado por 01G con GO técnico. La ejecución sigue pendiente de iniciar expresamente `02 - CONTROLLED PRODUCTION MIGRATION`; no autoriza procesamiento general.
+**Estado:** SUPERSEDED por DEC-011. Se conserva como historial: readiness completado por 01G con GO técnico. La ejecución de `02 - CONTROLLED PRODUCTION MIGRATION` ya no está pendiente; DEC-011 la cierra. Sigue sin autorizar procesamiento general.
 
 ## DEC-010
 
@@ -83,11 +83,11 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Riesgo residual aceptado:** No se ensayó una restauración completa. El dump pasó `pg_restore --list`, tiene SHA-256 verificado y se preservó el snapshot de catálogo/grants/policies. Si el DOWN no basta, cualquier restore requerirá autorización de recuperación separada.
 **Paradas obligatorias:** STOP si cambia el baseline; si existen requests/leases activos; si los hashes no coinciden; si falla 0002/0003 o cualquier invariante DB/RLS/Storage; si el control no queda `paused` con kill switch activo; si existe GPU previa no explicada; o si cualquier canary deja estado ambiguo, duplicados, artefactos pendientes o costo inesperado.
 **Límite de autorización:** El hilo 02 puede ejecutar únicamente la migración cerrada y los canaries indicados. No puede habilitar procesamiento general, hacer push ni omitir rollback ante inconsistencia sin una decisión posterior del MASTER.
-**Estado:** Aceptada. 01G cerrado con GO técnico; 02 preparado pero todavía no iniciado.
+**Estado:** SUPERSEDED por DEC-011. Se conserva como historial: 01G cerrado con GO técnico. El hilo 02 ya no está preparado y sin iniciar; DEC-011 lo da por cerrado tras el canary. El límite de no habilitar procesamiento general permanece.
 
 ## DEC-011
 
 **Fecha:** 2026-09-21
 **Decisión:** Cerrar `02 - CONTROLLED PRODUCTION MIGRATION` tras un único canary production-canary validado end-to-end en Modal T4.
 **Motivo:** El UUID `ceec6e6e-29ac-4289-bf06-61b967140817` llegó a `done` mediante Supabase → Modal T4 → Storage, con un único song, duración `193.608 s`, 1,356 notas, 217 pedales y cero eventos descartados. Se verificaron ownership, hashes, artifacts, `_staging=0`, outbox/leases cerrados, costo settled y cero recursos activos.
-**Estado:** Completada. El sistema queda `paused` con kill switch activo; dispatcher sin trigger general y procesamiento general todavía deshabilitado. Deuda no bloqueante: los retries posteriores a compensación pueden requerir reutilización formal de rutas `cleaned`; no se implementó por la escala actual.
+**Estado:** Vigente. Completada. El sistema queda `paused` con kill switch activo; dispatcher sin trigger general, 0 GPU/contenedores activos, worker local disponible como fallback y procesamiento general Modal pendiente de autorización. Deuda no bloqueante: los retries posteriores a compensación pueden requerir reutilización formal de rutas `cleaned`; no se implementó por la escala actual.

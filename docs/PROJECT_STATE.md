@@ -1,10 +1,21 @@
 # Estado del proyecto
 
-Actualizado: 2026-09-19
+Actualizado: 2026-09-20
 
 ## Fase actual
 
-**Fase 3C — Migración controlada directa a producción preparada; ejecución todavía no iniciada.** El hardening local terminó con 0 Critical, 0 High y 0 Medium. `01G - PRODUCTION PREFLIGHT & BACKUP` cerró con GO técnico: baseline compatible, backup PostgreSQL y copia de Storage verificados, inventario SQL completo y rollback preparado. El MASTER consolidó todo el trabajo remoto restante en `02 - CONTROLLED PRODUCTION MIGRATION`, que deberá operar con puntos internos de parada y no habilitará procesamiento general automáticamente.
+**Fase 3C — `02 - CONTROLLED PRODUCTION MIGRATION` completada.** El hardening local terminó con 0 Critical, 0 High y 0 Medium. `01G - PRODUCTION PREFLIGHT & BACKUP` cerró con GO técnico: baseline compatible, backup PostgreSQL y copia de Storage verificados, inventario SQL completo y rollback preparado. `02` ya se ejecutó con puntos internos de parada y no habilitó procesamiento general.
+
+### Estado operativo
+
+- Migrations 0002–0007 aplicadas en producción.
+- Modal T4 `production-canary` desplegado y validado con un canary real exitoso.
+- `worker_control.mode=paused`.
+- `kill_switch=true`.
+- Dispatcher general deshabilitado.
+- Modal con 0 GPU y 0 contenedores activos.
+- Worker local disponible como fallback.
+- Procesamiento general Modal pendiente de autorización explícita.
 
 ## Arquitectura actual
 
@@ -33,9 +44,9 @@ MVP funcional y usado satisfactoriamente. El baseline del repositorio quedó ver
 - No activar polling cloud: el dispatcher debe entregar UUIDs explícitos y aplicar idempotencia, compensación, observabilidad y guardas de gasto.
 - Mantener Supabase para Auth/DB; R2 y el preview gratuito de 60 s siguen como decisiones candidatas por validar.
 
-## Último trabajo completado
+## Preflight 01G (histórico)
 
-2026-09-19: `01G - PRODUCTION PREFLIGHT & BACKUP` cerrado con GO técnico. Se confirmó PostgreSQL 17.6, tres requests `done`, cero `processing`, ausencia de colisiones con 0002/0003 y baseline compatible. El dump custom de PostgreSQL mide 298,246 bytes, tiene SHA-256 `c5f6e392516b75bba8569ac80f99b6ce0a5afb177b354471f04f6a5e2da950ad` y pasó `pg_restore --list`. Se respaldaron seis objetos de Storage por 8,184,488 bytes; el manifiesto tiene SHA-256 `4952a0fc76587f41470f67ddf51f35d870206489b1a363c395b96e8cc87a78ad`. No se ensayó un restore completo; ese riesgo residual fue aceptado. Producción no fue modificada.
+2026-09-19: `01G - PRODUCTION PREFLIGHT & BACKUP` cerró con GO técnico. Se confirmó PostgreSQL 17.6, tres requests `done`, cero `processing`, ausencia de colisiones con 0002/0003 y baseline compatible. El dump custom de PostgreSQL mide 298,246 bytes, tiene SHA-256 `c5f6e392516b75bba8569ac80f99b6ce0a5afb177b354471f04f6a5e2da950ad` y pasó `pg_restore --list`. Se respaldaron seis objetos de Storage por 8,184,488 bytes; el manifiesto tiene SHA-256 `4952a0fc76587f41470f67ddf51f35d870206489b1a363c395b96e8cc87a78ad`. No se ensayó un restore completo; ese riesgo residual fue aceptado. Ese preflight fue de sólo lectura. La modificación posterior de producción (migrations 0002–0007 y el canary) corresponde al cierre de 02, no a 01G.
 
 ## Último trabajo completado
 
@@ -64,7 +75,7 @@ Sin tocar infraestructura remota:
 
 ### Fase 3C — `02 - CONTROLLED PRODUCTION MIGRATION` — completada
 
-Un único hilo ejecutará durante una ventana corta de mantenimiento, con STOP interno ante cualquier inconsistencia:
+Un único hilo ejecutó durante una ventana corta de mantenimiento, con STOP interno ante cualquier inconsistencia:
 
 1. detener nuevas altas de trabajo y dejar la cola estable;
 2. apagar el polling del worker local, conservándolo listo como fallback;
@@ -94,7 +105,7 @@ Presentar evidencia al MASTER. El éxito de los canaries no autoriza consumo gen
 
 ## Ruta mínima a una posible migración productiva
 
-01G cerrado → iniciar un único hilo 02 autorizado → precheck final → mantenimiento → checkpoint final → 0002/0003 → comprobar `paused` y kill switch activo → validación DB/RLS/Storage sin GPU → deploy canary cerrado → un UUID explícito → validación → 2–3 canaries adicionales como máximo → volver a estado seguro → informe al MASTER. El procesamiento general permanece desautorizado.
+01G cerrado → `02 - CONTROLLED PRODUCTION MIGRATION` ejecutado y cerrado → canary production-canary validado → estado seguro (`mode=paused`, `kill_switch=true`, dispatcher general deshabilitado, 0 GPU/contenedores) → procesamiento general Modal pendiente de autorización explícita. No se vuelven a aplicar las migrations 0002–0007 ni se habilita la cola general sin otra decisión del MASTER.
 
 ## Siguiente tarea
 
