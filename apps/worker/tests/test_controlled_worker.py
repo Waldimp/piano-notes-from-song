@@ -211,6 +211,13 @@ def test_request_guard_only_reads_song_fields_inside_song_branch():
     assert "if new.request_id is distinct from old.request_id then" in migration
 
 
+def test_failed_canary_requeue_requires_paused_kill_switched_control_plane():
+    migration = (ROOT / "migrations/supabase/0007_retry_failed_controlled_canary.sql").read_text()
+    assert "v_control.mode <> 'paused' or not v_control.kill_switch" in migration
+    assert "v_attempt.status <> 'failed' or v_dispatch.state <> 'closed'" in migration
+    assert "insert into public.dispatch_outbox" in migration
+
+
 def test_checkpoint_checksum_is_fail_closed(tmp_path):
     checkpoint = tmp_path / "checkpoint.pth"
     checkpoint.write_bytes(b"pinned-model")
