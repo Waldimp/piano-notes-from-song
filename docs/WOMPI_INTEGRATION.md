@@ -92,24 +92,32 @@ Si un Mini Pack se reembolsa después de `purchase_grant`:
 
 ## WOMPI SUBSCRIPTIONS (Practice / Plus) — PARTIALLY READY
 
-Estado: **SUBSCRIPTIONS PARTIALLY READY** (2026-09-21).
+Estado: **SUBSCRIPTIONS PARTIALLY READY** (2026-09-21, sync/reconcile avanzado).
 Sin cobros recurrentes reales. `BILLING_SUBSCRIPTIONS_ENABLED` default **false**.
 `WOMPI_EXPECT_PRODUCTIVE=false`. Mini Pack one-time **no** se toca.
 
-### Endpoints confirmados (docs.wompi.sv + OpenAPI `https://api.wompi.sv/swagger/v1/swagger.json`)
+### Hechos oficiales confirmados
+
+| Hecho | Fuente |
+|---|---|
+| Renovación automática al finalizar el periodo | [Términos Usuario](https://wompi.sv/TerminosCondiciones/Usuario) |
+| Si falla el cobro: reintentos cada **4 horas** el día pactado y el día siguiente; luego el cliente gestiona pago con el merchant | mismos Términos |
+| Cancelación: acuerdo/notificación con merchant o herramientas Wompi al usuario | mismos Términos (no API merchant individual en OpenAPI) |
+| `GET .../suscripciones` fields: `id`, `fechaCreacion`, `alias`, `monto`, `pagosRealizados`, `estado`, `idSuscriptor`, `nombreSuscriptor`, `fechaInicio`, `diaPago` | OpenAPI `SuscripcionEnlacePagoRecurrenteOutputDto` |
+| `EstadoSuscripcion` = 0..4; filtro default descrito como **Activa**; labels numéricos **no** publicados | OpenAPI |
+| Filtro query `IdSuscriptor` en listado de suscripciones | OpenAPI |
+
+### Endpoints confirmados (docs.wompi.sv + OpenAPI)
 
 | Endpoint | Confirmado | Notas |
 |---|---|---|
-| `POST /EnlacePagoRecurrente` | Sí | Crea **enlace compartido** por plan (`diaDePago`, `nombre`, `idAplicativo`, `monto`, `descripcionProducto`) → `idEnlace` + `urlEnlace` |
-| `GET /EnlacePagoRecurrente` | Sí | Lista enlaces de la cuenta |
-| `GET /EnlacePagoRecurrente/{id}` | Sí | Metadata del enlace compartido |
-| `PUT /EnlacePagoRecurrente/{id}` | Sí | Editar enlace compartido |
-| `POST /EnlacePagoRecurrente/{id}` | Sí | **Desactiva el enlace completo** (todos los afiliados futuros) — **no** es cancel individual |
-| `GET /EnlacePagoRecurrente/{id}/suscripciones` | Sí | Lista afiliados: `id`, `idSuscriptor`, `nombreSuscriptor`, `estado` (enum int 0–4 **sin labels**), `monto`, `diaPago`, `pagosRealizados`, `fechaInicio` |
-| Webhook con `IdSuscripcion` / correlación renovación | **No** | Definición oficial solo muestra `EnlacePago` one-time (`IdentificadorEnlaceComercio`); no documenta payload recurrente |
-| Cancel API por suscriptor | **No** | No aparece en docs ni OpenAPI |
-| Fallo/reintento recurrente notificado | **No** | No documentado |
-| Simulación sandbox de renovación sin esperar `diaDePago` | **No** | No documentado |
+| `POST /EnlacePagoRecurrente` | Sí | Enlace **compartido** por plan |
+| `GET /EnlacePagoRecurrente` / `{id}` / `PUT` | Sí | Listar / leer / editar enlace |
+| `POST /EnlacePagoRecurrente/{id}` | Sí | Desactiva **enlace completo** — no cancel individual |
+| `GET /EnlacePagoRecurrente/{id}/suscripciones` | Sí | Afiliados + filtro `IdSuscriptor` |
+| Webhook ↔ `idSuscriptor` | **No** | Definición oficial = one-time `EnlacePago` |
+| Cancel API por suscriptor | **No** | Solo tools usuario / acuerdo merchant |
+| Simulación sandbox de renovación | **No** | No documentado |
 
 ### Plan mapping (server catalog)
 
@@ -120,48 +128,46 @@ Sin cobros recurrentes reales. `BILLING_SUBSCRIPTIONS_ENABLED` default **false**
 
 ### Modelo interno
 
-- `billing_subscriptions` (0012 + 0013): `provider`, `user_id`, `product_code`, `status`, `external_enlace_id` (link compartido), `external_subscription_id`, `current_period_starts_at` / `current_period_ends_at`, `last_payment_transaction_id`, `next_billing_at`, `cancel_at_period_end`
-- `billing_subscription_period_grants` + RPC `grant_subscription_period_credits` — idempotencia `(subscription_id, period_key)` y `(provider, external_transaction_id)`
-- Separación: payment tx ≠ subscription ≠ entitlement ≠ credit ledger
-- RLS: usuario solo `SELECT` propio; sin mutate status/IDs
+- `billing_subscriptions` (0012–0014): link + `external_subscription_id` + `external_subscriber_id` + snapshot (`pagos_realizados`, `wompi_estado_raw`, `wompi_fecha_inicio`, `wompi_dia_pago`, …) + `pending_unverified_payment_count`
+- `billing_subscription_sync_events`: observaciones idempotentes (`observation_key`); `credit_grant_allowed=false`
+- `billing_subscription_period_grants` + RPC `grant_subscription_period_credits` — **no** invocados desde sync
+- Regla: un incremento de `pagosRealizados` **nunca** otorga créditos sin `TransaccionCompra` aprobada correlacionada
+- RLS: usuario solo `SELECT` propio
 
 ### Lifecycle (deseado vs implementado)
 
 | Paso | Estado |
 |---|---|
-| Afiliación URL | Adapter listo; **API/UI HARD BLOCK** (`subscriptions_partially_ready`) — no generar cobros hasta correlación |
-| Primer cobro → +créditos | RPC lista; **no** cableada a webhook |
-| Renovación idempotente | Clave periodo + tx; **no** E2E |
-| Pago fallido → `past_due` | **No** (docs insuficientes) |
-| Cancel individual | **HARD BLOCK** `individual_cancel_unsupported` — no fingir cancel en DB mientras Wompi seguiría cobrando |
-| Cambio de plan | Bloqueado (cancel+resubscribe cuando exista cancel) |
+| Sync/consulta por `idSuscriptor` | `syncWompiSubscriptionsBySubscriberId` + reconcile puro |
+| Detectar Δ `pagosRealizados` | Sí → `needsVerifiedTransaction`; **sin** grant |
+| Afiliación URL / UI | HARD BLOCK (`BILLING_SUBSCRIPTIONS_ENABLED=false`) |
+| Primer cobro / renovación → créditos | Bloqueado hasta correlación webhook/tx |
+| Pago fallido | Política de reintentos conocida (Términos); mapeo a `past_due` aún sin labels de `estado` |
+| Cancel individual | HARD BLOCK |
+| Cambio de plan | Bloqueado |
 
-### Idempotencia (cuando se desbloquee)
+### Gaps restantes (solo estos)
 
-`grant_subscription_period_credits(subscription_id, period_key, external_transaction_id)` → `granted` \| `already_granted` (0 créditos extra). Ledger reason `subscription_grant`.
+1. Significado exacto `EstadoSuscripcion` 0–4
+2. Cancelación individual por API (o mecanismo merchant-side oficial)
+3. Correlación webhook recurrente ↔ `idSuscriptor`
+4. Simular renovación en sandbox
 
-### Sandbox evidence
+### Preguntas a soporte Wompi (gaps)
 
-- Mini Pack E2E: passed (ver sección anterior).
-- Practice/Plus E2E recurrente: **no ejecutado** (HARD STOP docs). Sin afiliaciones sandbox ni cobros simulados fingidos.
-
-### Preguntas exactas para soporte Wompi
-
-1. ¿El webhook de un cobro de `EnlacePagoRecurrente` incluye el `id` de la suscripción individual y/o `idSuscriptor`? ¿Cuál es el JSON exacto?
-2. ¿`ModuloUtilizado` u otro campo distingue BotonPago vs cargo recurrente?
-3. ¿Las renovaciones mensuales disparan el mismo webhook que el primer cobro? ¿Con qué `IdTransaccion` nuevo?
-4. ¿Cómo se notifica un cobro recurrente fallido y los reintentos (webhook, API, ambos)? ¿Cuántos reintentos y con qué frecuencia?
-5. ¿Existe endpoint para **cancelar una suscripción individual** sin desactivar el `EnlacePagoRecurrente` compartido? ¿Path y método?
-6. ¿Qué significan los valores `EstadoSuscripcion` 0–4?
-7. ¿Hay forma oficial en sandbox de simular una renovación sin esperar `diaDePago`?
-8. Al afiliarse a un enlace compartido, ¿podemos pasar un identificador de comercio / metadata que vuelva en el webhook (equivalente a `IdentificadorEnlaceComercio`)?
+1. ¿Webhook de cargo recurrente incluye `id` / `idSuscriptor`? JSON exacto.
+2. ¿`ModuloUtilizado` u otro campo distingue one-time vs recurrente?
+3. ¿Endpoint para cancelar **una** suscripción sin desactivar el enlace compartido?
+4. ¿Labels de `EstadoSuscripcion` 0–4?
+5. ¿Cómo simular renovación en sandbox sin esperar `diaDePago`?
+6. ¿Metadata de afiliación que vuelva en webhook (análogo a `IdentificadorEnlaceComercio`)?
 
 ### Feature flags
 
 | Flag | Valor prep |
 |---|---|
 | `BILLING_ENABLED` | `true` (Mini Pack sandbox) |
-| `BILLING_SUBSCRIPTIONS_ENABLED` | `false` (default; even si `true`, API sigue HARD BLOCK por docs) |
+| `BILLING_SUBSCRIPTIONS_ENABLED` | `false` |
 | `WOMPI_EXPECT_PRODUCTIVE` | `false` |
 
 ## Auth / env (nombres oficiales)

@@ -43,7 +43,7 @@ Beta cerrada. Mini Pack sandbox E2E passed. Practice/Plus parcialmente listos (s
 
 2026-09-21: Mini Pack production-ready prep (legales, cutover checklist) sin cobro real.
 
-2026-09-21: **SUBSCRIPTIONS PARTIALLY READY** — auditoría OpenAPI Wompi, migration 0013, adapters GET suscripciones/disable, RPC period grants, API HARD BLOCK, tests. Sin E2E Practice/Plus (docs insuficientes).
+2026-09-21: **Subscription sync/reconcile** — Términos (auto-renew + retry 4h×2 días); OpenAPI snapshot fields; migration 0014; Δ pagosRealizados sin auto-grant. `BILLING_SUBSCRIPTIONS_ENABLED` sigue false.
 
 ## Siguiente tarea
 

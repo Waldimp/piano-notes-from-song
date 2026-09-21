@@ -1,14 +1,16 @@
 /**
  * Practice/Plus subscription domain helpers.
  *
- * HARD BLOCK: Wompi docs + OpenAPI confirm shared EnlacePagoRecurrente and
- * GET .../suscripciones listing, but do NOT confirm:
- * - webhook fields that correlate a payment to an individual subscription id
- * - individual cancel API
- * - failed-renewal notification shape
+ * Confirmed (OpenAPI + Términos Usuario):
+ * - Shared EnlacePagoRecurrente + GET .../suscripciones (id, idSuscriptor,
+ *   pagosRealizados, fechaInicio, diaPago, estado raw 0–4, …)
+ * - Auto-renew; failed charge retries every 4h on billing day + next day
  *
- * Until those are confirmed, affiliation/credit activation must stay disabled.
- * See docs/WOMPI_INTEGRATION.md § WOMPI SUBSCRIPTIONS.
+ * Still HARD BLOCK for credit grants / affiliation activation:
+ * - webhook ↔ idSuscriptor correlation
+ * - individual cancel API (user terms: cancel via merchant / Wompi user tools)
+ * - EstadoSuscripcion label map 0–4
+ * - sandbox renewal simulation
  */
 
 import {
@@ -54,16 +56,18 @@ export function expectedPeriodPriceUsd(productCode: BillingProductCode): number 
 
 /**
  * Wompi EstadoSuscripcion is an undocumented int enum (0–4) in OpenAPI.
+ * OpenAPI filter default description mentions "Activa" but does not map numbers.
  * Store raw; do not invent display names.
  */
 export function mapWompiEstadoSuscripcion(raw: number | undefined): {
   raw: number | null;
   known: false;
+  openApiMentionsActivaDefault: true;
 } {
   if (raw === undefined || Number.isNaN(Number(raw))) {
-    return { raw: null, known: false };
+    return { raw: null, known: false, openApiMentionsActivaDefault: true };
   }
-  return { raw: Number(raw), known: false };
+  return { raw: Number(raw), known: false, openApiMentionsActivaDefault: true };
 }
 
 export type SubscriptionLifecycleBlock = {
@@ -74,18 +78,19 @@ export type SubscriptionLifecycleBlock = {
   gaps: string[];
 };
 
+/** Remaining gaps that still block safe credit grants / cancel. */
+export const SUBSCRIPTION_REMAINING_GAPS = [
+  "Meaning of EstadoSuscripcion enum values 0–4 (OpenAPI only says default filter is Activa)",
+  "Individual subscriber cancel via merchant API (User Terms: cancel with merchant or Wompi user tools; API only disables whole EnlacePagoRecurrente)",
+  "Webhook payload fields that correlate a recurrent charge to idSuscriptor / subscription id",
+  "Official sandbox way to simulate a renewal without waiting for diaDePago",
+] as const;
+
 /** Shared HARD BLOCK payload for affiliation / cancel / grant activation. */
 export function subscriptionLifecycleHardBlock(
   reason: "disabled" | "docs_gap" | "cancel_unsupported" = "docs_gap"
 ): SubscriptionLifecycleBlock {
-  const gaps = [
-    "Webhook payload fields that identify EnlacePagoRecurrente subscription id / idSuscriptor on each charge",
-    "Whether renewal charges use the same webhook schema as one-time EnlacePago (IdentificadorEnlaceComercio)",
-    "Failed recurrent payment / retry notification (API or webhook)",
-    "Individual subscriber cancel endpoint (POST disable is whole EnlacePagoRecurrente only)",
-    "Meaning of EstadoSuscripcion enum values 0–4",
-    "Official sandbox way to simulate a renewal without waiting for diaDePago",
-  ];
+  const gaps = [...SUBSCRIPTION_REMAINING_GAPS];
 
   if (reason === "cancel_unsupported") {
     return {
@@ -93,7 +98,7 @@ export function subscriptionLifecycleHardBlock(
       status: 501,
       code: "individual_cancel_unsupported",
       error:
-        "Wompi documents only deactivating the shared EnlacePagoRecurrente, not an individual subscriber. Cancel UI stays disabled to avoid charging after a local-only cancel.",
+        "No merchant API for individual cancel is documented. User Terms say cancel via merchant agreement or Wompi user tools; POST /EnlacePagoRecurrente/{id} disables the shared link for everyone.",
       gaps,
     };
   }
@@ -113,7 +118,7 @@ export function subscriptionLifecycleHardBlock(
     status: 501,
     code: "subscriptions_partially_ready",
     error:
-      "Practice/Plus are partially ready: shared EnlacePagoRecurrente APIs exist, but payment↔subscriber correlation and individual cancel are not documented safely enough to grant credits or charge users.",
+      "Practice/Plus sync/reconcile is ready, but credit grants stay blocked until webhook↔subscriber correlation is documented. pagosRealizados increments alone never grant credits.",
     gaps,
   };
 }

@@ -287,7 +287,13 @@ export type WompiSuscripcionRecurrente = {
 export async function listEnlacePagoRecurrenteSuscripciones(
   cfg: WompiEnvConfig,
   idEnlace: string,
-  query?: { idSuscriptor?: string; paginaActual?: number; suscripcionesPorPagina?: number }
+  query?: {
+    idSuscriptor?: string;
+    paginaActual?: number;
+    suscripcionesPorPagina?: number;
+    /** Raw EstadoSuscripcion 0–4; OpenAPI default filter described as Activa. */
+    estado?: number;
+  }
 ): Promise<WompiSuscripcionRecurrente[]> {
   const token = await fetchWompiAccessToken(cfg);
   const qs = new URLSearchParams();
@@ -296,6 +302,7 @@ export async function listEnlacePagoRecurrenteSuscripciones(
   if (query?.suscripcionesPorPagina != null) {
     qs.set("SuscripcionesPorPagina", String(query.suscripcionesPorPagina));
   }
+  if (query?.estado != null) qs.set("Estado", String(query.estado));
   const suffix = qs.toString() ? `?${qs}` : "";
   const res = await fetch(
     `${cfg.apiBaseUrl}/EnlacePagoRecurrente/${encodeURIComponent(idEnlace)}/suscripciones${suffix}`,

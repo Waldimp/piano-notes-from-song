@@ -72,7 +72,11 @@ describe("period grant idempotency keys (internal)", () => {
   });
 
   it("does not invent EstadoSuscripcion labels", () => {
-    expect(mapWompiEstadoSuscripcion(0)).toEqual({ raw: 0, known: false });
+    expect(mapWompiEstadoSuscripcion(0)).toEqual({
+      raw: 0,
+      known: false,
+      openApiMentionsActivaDefault: true,
+    });
     expect(mapWompiEstadoSuscripcion(undefined).raw).toBeNull();
   });
 });
@@ -91,9 +95,10 @@ describe("subscription lifecycle HARD BLOCK", () => {
       const block = subscriptionLifecycleHardBlock("docs_gap");
       expect(block.ok).toBe(false);
       expect(block.code).toBe("subscriptions_partially_ready");
-      expect(block.gaps.length).toBeGreaterThan(3);
+      expect(block.gaps.length).toBe(4);
       expect(block.gaps.some((g) => /cancel/i.test(g))).toBe(true);
       expect(block.gaps.some((g) => /webhook|correlat/i.test(g))).toBe(true);
+      expect(block.gaps.every((g) => !/reintent/i.test(g))).toBe(true);
     } finally {
       if (prev === undefined) delete process.env.BILLING_SUBSCRIPTIONS_ENABLED;
       else process.env.BILLING_SUBSCRIPTIONS_ENABLED = prev;
