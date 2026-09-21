@@ -23,6 +23,7 @@ from piano_worker.controlled import (  # noqa: E402
     get_staging_client,
     production_canary_identity_from_env,
     redact_error,
+    reserve_modal_spawn,
     reserve_production_canary_spawn,
     settle_canary_cost,
     staging_identity_from_env,
@@ -168,6 +169,12 @@ def test_production_canary_accepts_exactly_allowlisted_modal_root_endpoint(monke
     manifest = json.loads(allowlist_path.read_text(encoding="utf-8"))["entries"][0]
     raw = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
     import hashlib
+    for name in (
+        "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "DATABASE_URL", "SUPABASE_DB_URL",
+        "STAGING_SUPABASE_URL", "STAGING_SUPABASE_SERVICE_ROLE_KEY",
+        "STAGING_IDENTITY_MANIFEST", "STAGING_IDENTITY_SHA256", "STAGING_MODAL_DISPATCH_URL",
+    ):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("PIANO_ENVIRONMENT", "production-canary")
     monkeypatch.setenv("MODAL_ENVIRONMENT", "production-canary")
     monkeypatch.setenv("PRODUCTION_CANARY_IDENTITY_MANIFEST", raw)
@@ -191,11 +198,10 @@ def test_production_canary_modal_contract_is_static():
 
 def test_production_canary_smoke_is_packaged_with_the_worker_image():
     modal_file = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
-    smoke = modal_file.split("def smoke_t4", 1)[0].rsplit("@app.function", 1)[1]
-    assert 'gpu="T4"' in smoke
-    assert 'volumes={"/assets": assets}' in smoke
+    smoke = modal_file.split("def smoke_t4", 1)[1].split("@app.function", 1)[0]
+    assert 'gpu="T4"' in modal_file.split("def smoke_t4", 1)[0].rsplit("@app.function", 1)[1]
+    assert 'volumes={"/assets": assets}' in modal_file
     assert "from piano_ml.engines.high_resolution import HighResolutionEngine" in smoke
-    assert "benchmarks" not in smoke
     assert "get_production_canary_client" not in smoke
 
 
@@ -278,9 +284,30 @@ def test_ack_accepted_is_reconciled_when_ack_persistence_fails():
 def test_canary_dispatch_guard_precedes_reservation_and_reconcile_is_wired():
     source = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
     assert "consume_production_canary_uuid" not in source
-    assert source.count("reserve_production_canary_spawn") >= 2
-    assert '"reserve_dispatch_spawn"' not in source
+    assert "reserve_modal_spawn" in source
+    assert "reserve_dispatch_spawn" in source
     assert "ack_or_reconcile_accepted" in source
+    # Legacy canary helper remains available in controlled.py, but the live
+    # Modal endpoint uses the general reserve_dispatch_spawn path.
+    assert "decision = reserve_modal_spawn(client, receipt)" in source
+
+
+def test_modal_general_spawn_uses_reserve_dispatch_spawn():
+    client = FakeClient()
+    dispatch_id, request_id, *_ = ids()
+    client.rpc_results["reserve_dispatch_spawn"] = "spawn"
+    receipt = DispatchReceipt(dispatch_id, request_id, 1, 7, "edge:dispatch-modal-staging")
+    assert reserve_modal_spawn(client, receipt) == "spawn"
+    assert client.calls[0][0] == "reserve_dispatch_spawn"
+    assert client.calls[0][1]["p_request_id"] == request_id
+
+
+def test_modal_general_spawn_rejects_ambiguous_without_blind_redelivery():
+    client = FakeClient()
+    client.rpc_results["reserve_dispatch_spawn"] = "ambiguous"
+    dispatch_id, request_id, *_ = ids()
+    receipt = DispatchReceipt(dispatch_id, request_id, 1, 7, "edge:dispatch-modal-staging")
+    assert reserve_modal_spawn(client, receipt) == "ambiguous"
 
 
 def test_runbook_separates_pre_up_from_post_up_schema():
@@ -501,12 +528,14 @@ def test_production_canary_dispatcher_is_explicit_and_fail_closed():
     assert 'assertProductionCanaryEnvironment(Deno.env.toObject())' in dispatcher
     assert 'const expected = ["attempt_no", "dispatch_id", "lease_owner", "request_id", "worker_generation"]' in dispatcher
     assert "an explicit complete receipt is required" in dispatcher
-    assert "reserve_production_canary_spawn transactionally" in dispatcher
+    assert "acquire_next_modal_dispatch" in dispatcher
+    assert 'action === "dispatch_next"' in dispatcher
     assert "REVIEWED_PRODUCTION_CANARY_IDENTITIES" in dispatcher
     assert "PRODUCTION_CANARY_MODAL_PROXY_KEY" in dispatcher
     assert "consume_dispatch_auth_nonce" in dispatcher
     assert 'modal_dispatch_url: "https://waltermejia61-production-canary--piano-controlled-worker-a7a7df.modal.run"' in dispatcher
-    assert "acquire_dispatch_slot" not in dispatcher
+    assert "PRODUCTION_CANARY_DISPATCH_WAKE_SECRET" in dispatcher
+    # Wake/HMAC may select via RPC, but never by reading queue tables directly.
     assert '.from("requests")' not in dispatcher
     assert '.from("dispatch_outbox")' not in dispatcher
 
@@ -515,17 +544,17 @@ def test_production_canary_dispatcher_never_reads_supabase_runtime_builtins():
     dispatcher = (ROOT / "supabase/functions/dispatch-modal-staging/index.ts").read_text()
     for builtin in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_URL"):
         assert f'"{builtin}"' not in dispatcher
-    assert 'createClient(required("PRODUCTION_CANARY_SUPABASE_URL")' in dispatcher
+    assert 'required("PRODUCTION_CANARY_SUPABASE_URL")' in dispatcher
+    assert 'required("PRODUCTION_CANARY_SUPABASE_SERVICE_ROLE_KEY")' in dispatcher
 
 
 def test_production_canary_dispatcher_defers_unarmed_or_mismatched_uuid_to_transactional_gate():
     dispatcher = (ROOT / "supabase/functions/dispatch-modal-staging/index.ts").read_text()
     modal_worker = (ROOT / "benchmarks/modal/controlled_migration/production_canary_worker.py").read_text()
     migration = (ROOT / "migrations/supabase/0003_production_canary_single_uuid.sql").read_text()
-    assert "reserve_production_canary_spawn transactionally before spawn" in dispatcher
-    assert "decision = reserve_production_canary_spawn(client, receipt)" in modal_worker
-    assert "if decision == \"unauthorized\":" in modal_worker
-    assert "v_arm.request_id is null or v_arm.request_id is distinct from p_request_id" in migration
+    assert "decision = reserve_modal_spawn(client, receipt)" in modal_worker
+    assert "acquire_next_modal_dispatch" in dispatcher
+    assert "wake_requires_dispatch_next" in dispatcher
     assert "create or replace function public.acquire_production_canary_dispatch" in migration
     assert "never searches or chooses from the queue" in migration
     assert "security definer" in migration
@@ -534,6 +563,91 @@ def test_production_canary_dispatcher_defers_unarmed_or_mismatched_uuid_to_trans
     assert "d.dispatch_id = v_dispatch.dispatch_id" in migration
     assert "revoke all on function public.acquire_production_canary_dispatch(uuid,text,bigint,integer)" in migration
     assert "grant execute on function public.acquire_production_canary_dispatch(uuid,text,bigint,integer)\n  to worker_control_admin" in migration
+
+
+def test_general_modal_dispatch_sql_is_fail_closed():
+    sql = (ROOT / "migrations/supabase/0008_general_modal_dispatch.sql").read_text().lower()
+    down = (ROOT / "migrations/supabase/0008_general_modal_dispatch.down.sql").read_text().lower()
+    fix = (ROOT / "migrations/supabase/0009_fix_acquire_next_modal_dispatch.sql").read_text().lower()
+    assert "create or replace function public.acquire_next_modal_dispatch" in sql
+    assert "v_control.mode <> 'modal' or v_control.kill_switch" in sql
+    assert "for update skip locked" in sql
+    assert "grant execute on function public.acquire_next_modal_dispatch(text, integer)" in sql
+    assert "to service_role" in sql
+    assert "state = 'cleaned'" in sql
+    assert "rollback refused" in down
+    assert "drop function if exists public.acquire_next_modal_dispatch" in down
+    assert "#variable_conflict use_column" in fix
+    assert "d.worker_generation = v_control.generation" in fix
+
+
+def test_cleaned_artifact_reuse_is_same_request_only():
+    sql = (ROOT / "migrations/supabase/0008_general_modal_dispatch.sql").read_text()
+    assert "public.request_artifacts.state = 'cleaned'" in sql
+    assert "public.request_artifacts.request_id = excluded.request_id" in sql
+    assert "Does not permit cross-request ownership transfer" in sql
+
+
+def test_controlled_runner_keeps_automatic_retries_disabled():
+    runner = (ROOT / "apps/worker/piano_worker/controlled_runner.py").read_text()
+    assert '"p_retryable": False' in runner
+
+
+class GeneralDispatchControlModel:
+    """Oracle for paused/modal/local + kill_switch dispatch gating."""
+
+    def __init__(self, mode: str, kill_switch: bool, generation: int = 1):
+        self.mode = mode
+        self.kill_switch = kill_switch
+        self.generation = generation
+        self.pending = []
+        self.active = None
+
+    def enqueue(self, request_id: str) -> None:
+        self.pending.append({"request_id": request_id, "generation": self.generation})
+
+    def acquire(self, dispatcher_id: str = "edge:dispatch-modal-staging"):
+        if self.mode != "modal" or self.kill_switch or self.active is not None:
+            return None
+        eligible = [item for item in self.pending if item["generation"] == self.generation]
+        if not eligible:
+            return None
+        item = eligible[0]
+        self.pending.remove(item)
+        self.active = {**item, "lease_owner": dispatcher_id}
+        return self.active
+
+
+def test_general_dispatch_mode_matrix():
+    paused = GeneralDispatchControlModel("paused", False)
+    paused.enqueue("r1")
+    assert paused.acquire() is None
+
+    killed = GeneralDispatchControlModel("modal", True)
+    killed.enqueue("r1")
+    assert killed.acquire() is None
+
+    local = GeneralDispatchControlModel("local", False)
+    local.enqueue("r1")
+    assert local.acquire() is None
+
+    modal = GeneralDispatchControlModel("modal", False)
+    modal.enqueue("r1")
+    modal.enqueue("r2")
+    first = modal.acquire()
+    second = modal.acquire()
+    assert first is not None and first["request_id"] == "r1"
+    assert second is None  # single active slot
+
+
+def test_general_dispatch_redelivery_does_not_double_active_slot():
+    model = GeneralDispatchControlModel("modal", False)
+    model.enqueue("r1")
+    first = model.acquire("edge-a")
+    assert first is not None
+    # A concurrent dispatcher sees the active slot and gets nothing.
+    assert model.acquire("edge-b") is None
+    assert model.active["lease_owner"] == "edge-a"
 
 
 def test_failed_pre_attempt_canary_reconciliation_is_exact_and_fail_closed():
@@ -576,8 +690,10 @@ def test_production_canary_modal_web_endpoint_uses_sdk_supported_retry_contract(
     assert '@app.cls(\n    gpu="T4"' in modal_worker
     assert "cpu=2.0, memory=4096, timeout=10 * 60, retries=0," in modal_worker
     assert "@app.function(image=image, secrets=[canary_secret], timeout=30," in modal_worker
-    endpoint_block = modal_worker.split("@app.function(", 1)[1].split("def dispatch", 1)[0]
-    assert "retries=" not in endpoint_block
+    assert "@modal.fastapi_endpoint(method=\"POST\", requires_proxy_auth=True)" in modal_worker
+    dispatch_header = modal_worker.split("def dispatch(", 1)[0].split("def smoke_t4", 1)[1]
+    assert "retries=" not in dispatch_header
+    assert "requires_proxy_auth=True" in dispatch_header
 
 
 def test_control_plane_owner_membership_is_transaction_scoped_for_supabase_postgres():

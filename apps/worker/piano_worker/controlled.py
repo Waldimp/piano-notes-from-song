@@ -210,6 +210,21 @@ def reserve_production_canary_spawn(client: Any, receipt: DispatchReceipt) -> st
     return decision
 
 
+def reserve_modal_spawn(client: Any, receipt: DispatchReceipt) -> str:
+    """Reserve a general Modal dispatch without the single-UUID canary arm."""
+    canonical = canonical_uuid(receipt.request_id)
+    decision = rpc(client, "reserve_dispatch_spawn", {
+        "p_dispatch_id": receipt.dispatch_id,
+        "p_request_id": canonical,
+        "p_attempt_no": receipt.attempt_no,
+        "p_worker_generation": receipt.worker_generation,
+        "p_lease_owner": receipt.lease_owner,
+    })
+    if decision not in {"spawn", "replay", "stale", "ambiguous"}:
+        raise RuntimeError("modal spawn reservation returned an invalid decision")
+    return decision
+
+
 def ack_or_reconcile_accepted(client: Any, dispatch_id: str, lease_owner: str, call_id: str) -> None:
     """Persist ACK, or durably record an accepted spawn for reconciliation."""
     if rpc(client, "ack_dispatch", {

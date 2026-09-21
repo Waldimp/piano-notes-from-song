@@ -21,6 +21,12 @@ export const REQUIRED_PRODUCTION_CANARY_VARIABLES = [
   "PRODUCTION_CANARY_MODAL_PROXY_SECRET",
 ];
 
+// Optional: enables control-plane wake without rotating the HMAC secret.
+// When present, Authorization: Bearer <wake> may call action=dispatch_next only.
+export const OPTIONAL_PRODUCTION_CANARY_VARIABLES = [
+  "PRODUCTION_CANARY_DISPATCH_WAKE_SECRET",
+];
+
 export const assertProductionCanaryEnvironment = (environment) => {
   if (environment.PIANO_ENVIRONMENT !== "production-canary") {
     throw new Error("production-canary only");

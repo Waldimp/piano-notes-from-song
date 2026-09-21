@@ -128,18 +128,19 @@ def dispatch(receipt_payload: dict[str, Any]) -> dict[str, Any]:
     from fastapi import HTTPException
     from piano_worker.controlled import (
         DispatchReceipt, get_production_canary_client,
-        ack_or_reconcile_accepted, reserve_production_canary_spawn, rpc,
+        ack_or_reconcile_accepted, reserve_modal_spawn, rpc,
     )
     receipt = DispatchReceipt.from_payload(receipt_payload)
     client = get_production_canary_client()
-    # One transaction validates UUID, locks the singleton, and reserves dispatch.
-    decision = reserve_production_canary_spawn(client, receipt)
+    # General path: lease must already exist via acquire_next_modal_dispatch.
+    # No canary arm; reserve_dispatch_spawn enforces mode/kill/ownership.
+    decision = reserve_modal_spawn(client, receipt)
     if decision == "replay":
         return {"status": "already_acknowledged", "dispatch_id": receipt.dispatch_id}
-    if decision == "unauthorized":
-        raise HTTPException(status_code=409, detail="canary UUID is not armed for this dispatch")
+    if decision == "ambiguous":
+        raise HTTPException(status_code=409, detail="dispatch spawn is ambiguous; reconcile first")
     if decision != "spawn":
-        raise HTTPException(status_code=409, detail="stale or ambiguous dispatch receipt")
+        raise HTTPException(status_code=409, detail="stale or unauthorized dispatch receipt")
     reservation_id = rpc(client, "reserve_worker_cost", {
         "p_request_id": receipt.request_id, "p_attempt_id": None, "p_estimated_usd": 0.03,
     })
