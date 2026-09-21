@@ -11,7 +11,9 @@ import {
 import {
   amountsMatch,
   computeWompiWebhookHash,
+  loadWompiConfig,
   verifyWompiWebhookHash,
+  wompiConfigured,
 } from "./wompi";
 import {
   aplicativoMatches,
@@ -116,6 +118,28 @@ describe("negative webhook gates", () => {
 
   it("rejects amount mismatch as amount gate", () => {
     expect(amountsMatch(2.99, 1.0)).toBe(false);
+  });
+});
+
+describe("wompi idAplicativo defaults to App ID", () => {
+  it("is configured with only client id + secret", () => {
+    const prevId = process.env.WOMPI_CLIENT_ID;
+    const prevSecret = process.env.WOMPI_CLIENT_SECRET;
+    const prevApp = process.env.WOMPI_APLICATIVO_ID;
+    try {
+      process.env.WOMPI_CLIENT_ID = "app-id-same-as-aplicativo";
+      process.env.WOMPI_CLIENT_SECRET = "api-secret-not-real";
+      delete process.env.WOMPI_APLICATIVO_ID;
+      expect(wompiConfigured()).toBe(true);
+      expect(loadWompiConfig().aplicativoId).toBe("app-id-same-as-aplicativo");
+    } finally {
+      if (prevId === undefined) delete process.env.WOMPI_CLIENT_ID;
+      else process.env.WOMPI_CLIENT_ID = prevId;
+      if (prevSecret === undefined) delete process.env.WOMPI_CLIENT_SECRET;
+      else process.env.WOMPI_CLIENT_SECRET = prevSecret;
+      if (prevApp === undefined) delete process.env.WOMPI_APLICATIVO_ID;
+      else process.env.WOMPI_APLICATIVO_ID = prevApp;
+    }
   });
 });
 

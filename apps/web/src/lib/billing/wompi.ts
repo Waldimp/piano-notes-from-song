@@ -5,7 +5,12 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * https://docs.wompi.sv/autenticacion/autenticacion
  * https://docs.wompi.sv/webhook/validar-webhook
  *
- * Panel mapping: App ID → client_id; API Secret → client_secret (+ webhook HMAC key).
+ * Panel mapping:
+ * - App ID → WOMPI_CLIENT_ID (OAuth client_id)
+ * - API Secret → WOMPI_CLIENT_SECRET (OAuth client_secret + webhook HMAC key)
+ * - idAplicativo: docs say clientIdApi is generally the same as idAplicativo /
+ *   "APP ID dentro del panel". Optional WOMPI_APLICATIVO_ID overrides; otherwise
+ *   defaults to WOMPI_CLIENT_ID (no third secret required).
  */
 export type WompiEnvConfig = {
   clientId: string;
@@ -20,11 +25,7 @@ export type WompiEnvConfig = {
 };
 
 export function wompiConfigured(): boolean {
-  return Boolean(
-    process.env.WOMPI_CLIENT_ID &&
-      process.env.WOMPI_CLIENT_SECRET &&
-      process.env.WOMPI_APLICATIVO_ID
-  );
+  return Boolean(process.env.WOMPI_CLIENT_ID && process.env.WOMPI_CLIENT_SECRET);
 }
 
 export function billingEnabled(): boolean {
@@ -39,10 +40,11 @@ export function billingSubscriptionsEnabled(): boolean {
 export function loadWompiConfig(): WompiEnvConfig {
   const clientId = process.env.WOMPI_CLIENT_ID?.trim();
   const clientSecret = process.env.WOMPI_CLIENT_SECRET?.trim();
-  const aplicativoId = process.env.WOMPI_APLICATIVO_ID?.trim();
-  if (!clientId || !clientSecret || !aplicativoId) {
+  if (!clientId || !clientSecret) {
     throw new Error("wompi credentials not configured");
   }
+  // Official docs: clientIdApi is generally the same as idAplicativo / App ID.
+  const aplicativoId = process.env.WOMPI_APLICATIVO_ID?.trim() || clientId;
   return {
     clientId,
     clientSecret,

@@ -8,7 +8,8 @@ Usage (after credentials are configured in the shell / .env.local — never comm
   set BILLING_ENABLED=true
   set WOMPI_EXPECT_PRODUCTIVE=false
   set NEXT_PUBLIC_APP_URL=https://piano-notes-from-song.vercel.app
-  # + WOMPI_CLIENT_ID / WOMPI_CLIENT_SECRET / WOMPI_APLICATIVO_ID
+  # + WOMPI_CLIENT_ID / WOMPI_CLIENT_SECRET
+  #   (WOMPI_APLICATIVO_ID optional; defaults to App ID / client_id per Wompi docs)
   python scripts/production-canary/e2e_wompi_mini_pack.py --check-config
   python scripts/production-canary/e2e_wompi_mini_pack.py --checkout --user-id <uuid> --access-token <jwt>
 """
@@ -46,7 +47,6 @@ def check_config() -> int:
     required = [
         "WOMPI_CLIENT_ID",
         "WOMPI_CLIENT_SECRET",
-        "WOMPI_APLICATIVO_ID",
         "NEXT_PUBLIC_APP_URL",
     ]
     missing = [n for n in required if not _present(n)]
@@ -57,13 +57,18 @@ def check_config() -> int:
         os.environ.get("WOMPI_EXPECT_PRODUCTIVE", "<unset>"),
     )
     print("  NEXT_PUBLIC_APP_URL_set=", _present("NEXT_PUBLIC_APP_URL"))
-    for n in ("WOMPI_CLIENT_ID", "WOMPI_CLIENT_SECRET", "WOMPI_APLICATIVO_ID"):
+    for n in ("WOMPI_CLIENT_ID", "WOMPI_CLIENT_SECRET"):
         print(f"  {n}_set=", _present(n))
+    print(
+        "  WOMPI_APLICATIVO_ID_set=",
+        _present("WOMPI_APLICATIVO_ID"),
+        "(optional; defaults to App ID)",
+    )
     if missing:
         print("HARD_STOP missing:", ",".join(missing))
         print(
             "Configure secrets on Vercel project piano-notes-from-song "
-            "(Production + Preview) then redeploy. Keep WOMPI_EXPECT_PRODUCTIVE=false."
+            "(Production) then redeploy. Keep WOMPI_EXPECT_PRODUCTIVE=false."
         )
         return 2
     if os.environ.get("WOMPI_EXPECT_PRODUCTIVE", "").lower() == "true":

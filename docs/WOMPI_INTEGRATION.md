@@ -114,7 +114,7 @@ Por eso:
 |---|---|
 | `WOMPI_CLIENT_ID` | App ID del negocio (= OAuth `client_id`) |
 | `WOMPI_CLIENT_SECRET` | API Secret (= OAuth `client_secret` + HMAC webhook) |
-| `WOMPI_APLICATIVO_ID` | Id del aplicativo/negocio (webhook `Aplicativo.Id`) |
+| `WOMPI_APLICATIVO_ID` | Opcional; defaults a App ID (docs: clientIdApi ≈ idAplicativo) |
 | `WOMPI_AUDIENCE` | fijo `wompi_api` |
 | `WOMPI_TOKEN_URL` | `https://id.wompi.sv/connect/token` |
 | `WOMPI_API_BASE_URL` | `https://api.wompi.sv` |
@@ -149,31 +149,38 @@ Helper: `python scripts/production-canary/e2e_wompi_mini_pack.py --check-config`
 
 ## Estado E2E Mini Pack (2026-09-21)
 
-**HARD STOP — credenciales Wompi no disponibles** en:
+**Sandbox E2E PASSED** (aplicativo en modo desarrollo; sin cobro real).
 
-- `.env` / `.env.local` locales
-- Variables Vercel del proyecto `piano-notes-from-song` (inspectadas: solo Supabase/CRON/wake; sin `WOMPI_*` ni `BILLING_ENABLED` ni `NEXT_PUBLIC_APP_URL`)
+| Campo | Valor |
+|---|---|
+| purchase_id | `5913c4ec-56a2-4948-8e56-2a0796556382` |
+| tx (parcial) | `88c8ed50-…-61df946d2765` |
+| enlace | `4415845` |
+| environment | development (`EsProductiva`/prueba) |
+| credits | before **3** → after **8** (+5 una vez) |
+| webhook | `billing_events` processed, `signature_valid=true` |
+| duplicate settle | `already_settled`, balance sigue 8, 1× `purchase_grant` |
+| redirect | `/billing/return` no otorga créditos por sí solo |
 
-Por eso **no** se ejecutó checkout real ni webhook real. Practice/Plus siguen deshabilitados. `BILLING_ENABLED` permanece **false** (default).
+Credenciales: `WOMPI_CLIENT_ID` + `WOMPI_CLIENT_SECRET` en Vercel Production.  
+`WOMPI_APLICATIVO_ID` **opcional** (defaults a App ID; docs: clientIdApi ≈ idAplicativo).  
+`BILLING_ENABLED=true`, `WOMPI_EXPECT_PRODUCTIVE=false`, `NEXT_PUBLIC_APP_URL=https://piano-notes-from-song.vercel.app`.
 
-Cuando existan credenciales de aplicativo en **modo desarrollo**:
+Practice/Plus siguen deshabilitados. Cutover a productivo: ver sección abajo — **no hecho**.
 
-1. Set env + redeploy
-2. `--check-config` debe salir `config_ok`
-3. Usuario autenticado → Buy Mini Pack → pagar en UI Wompi (desarrollo; CVV `111` = denegada)
-4. Confirmar `billing_purchases.settled_at`, ledger `purchase_grant` +5, duplicate webhook sin segundo grant
+Helper: `python scripts/production-canary/e2e_wompi_mini_pack.py --check-config`
 
 ## Checklist sandbox
 
-- [ ] Negocio en **modo desarrollo** en panel.wompi.sv
-- [ ] Copiar App ID / API Secret / id aplicativo
-- [ ] Env en Vercel + `WOMPI_EXPECT_PRODUCTIVE=false`, `BILLING_ENABLED=true`
+- [x] Negocio en **modo desarrollo** en panel.wompi.sv
+- [x] App ID / API Secret en Vercel
+- [x] Env + `WOMPI_EXPECT_PRODUCTIVE=false`, `BILLING_ENABLED=true`
 - [x] Migration `0012` aplicada
-- [ ] Webhook URL pública registrada / usada en EnlacePago
-- [ ] Comprar Mini Pack de prueba
-- [ ] Verificar +5 créditos una sola vez; reenviar webhook no duplica
-- [ ] Redirect no cambia balance por sí solo
-- [ ] Volver `BILLING_ENABLED=false` o dejarlo true solo en Preview — **no** productivo todavía
+- [x] Webhook URL usada en EnlacePago
+- [x] Mini Pack de prueba exitoso (+5 una vez)
+- [x] Duplicate settle no duplica créditos
+- [x] Redirect no cambia balance por sí solo
+- [ ] Decidir si dejar `BILLING_ENABLED=true` en Production (sandbox) o volver a `false` hasta go-live
 
 ## Cutover development → production (NO hacer todavía)
 
