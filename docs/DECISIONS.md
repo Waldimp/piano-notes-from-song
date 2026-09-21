@@ -97,4 +97,11 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Fecha:** 2026-09-21
 **Decisión:** Habilitar procesamiento Modal general controlado reutilizando outbox + `acquire_next_modal_dispatch` + Edge Function wake + Modal T4 existente, sin polling desde Modal y conservando el worker local como fallback.
 **Motivo:** El canary demostró el pipeline end-to-end; el gap era solo la selección server-side de UUIDs elegibles y un despertador autenticado. Tres jobs reales (incluyendo prueba de pausa) completaron `done` con un song cada uno, sin `_staging`, outbox cerrada y GPU en cero al finalizar.
-**Estado:** Vigente. Wake primario = `POST /api/wake-dispatch` tras upload web (sesión; sin secret en el cliente). Cron Hobby diario = recovery. Operativo: `mode=modal`, `kill_switch=false`, hard stop USD 20, `max_containers=1`, retries automáticos deshabilitados. Deuda: naming histórico `dispatch-modal-staging`/`production-canary`; rate limiting del wake pendiente de Beta Readiness.
+**Estado:** Vigente. Wake primario vía create-request server-side + `/api/wake-dispatch`. Cron Hobby diario = recovery. Operativo: `mode=modal`, `kill_switch=false`, hard stop USD 20, `max_containers=1`, retries automáticos deshabilitados. Deuda: naming histórico `dispatch-modal-staging`/`production-canary`.
+
+## DEC-013
+
+**Fecha:** 2026-09-21
+**Decisión:** Preparar beta cerrada con aislamiento RLS por usuario, entitlements/créditos internos (sin PSP), FREE 3×60s, límites por plan en `plan_limits`, create-request server-side y rate/concurrency básicos en Postgres.
+**Motivo:** La app era multi-usuario autenticado con policies `using (true)`; para beta real hace falta separación de datos y cuotas sin todavía integrar pagos.
+**Estado:** Vigente. Ver [`BETA_READINESS.md`](BETA_READINESS.md). Pagos, branding y R2 siguen fuera de alcance.

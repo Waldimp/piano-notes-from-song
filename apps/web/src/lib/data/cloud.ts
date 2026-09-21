@@ -5,7 +5,6 @@ import { isPianoTranscription } from "@piano/contracts";
 
 import { supabase } from "../supabase";
 import type { DataSource, JobState, JobStatus, SongSummary } from "./types";
-import { requestImmediateDispatchWake } from "./wake-after-submit";
 
 /** Las URLs firmadas duran 12 h: una sesion larga de practica sin recargar. */
 const SIGNED_URL_SECONDS = 12 * 60 * 60;
@@ -91,25 +90,36 @@ export const cloudDataSource: DataSource = {
     const sb = supabase();
     const { data: userData } = await sb.auth.getUser();
     if (!userData.user) throw new Error("Debes iniciar sesión");
+    const { data: sessionData } = await sb.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) throw new Error("Sesión inválida");
 
     const ext = file.name.match(/\.[^.]+$/)?.[0]?.toLowerCase() ?? ".mp3";
-    const path = `${crypto.randomUUID()}/${slugify(file.name)}${ext}`;
+    const path = `${userData.user.id}/${crypto.randomUUID()}/${slugify(file.name)}${ext}`;
     const { error: upError } = await sb.storage.from("uploads").upload(path, file, {
       contentType: file.type || undefined,
     });
     if (upError) throw new Error(`No se pudo subir el audio: ${upError.message}`);
 
-    const { data, error } = await sb
-      .from("requests")
-      .insert({ filename: file.name, audio_path: path, requested_by: userData.user.id })
-      .select("id")
-      .single();
-    if (error || !data) throw new Error(`No se pudo crear la solicitud: ${error?.message}`);
-
-    // Best-effort immediate wake. Upload already succeeded — keep queued if wake fails.
-    void requestImmediateDispatchWake(sb).catch(() => undefined);
-
-    return data.id;
+    const response = await fetch("/api/create-request", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ filename: file.name, audio_path: path }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as {
+      request_id?: string;
+      message?: string;
+      error?: string;
+      code?: string;
+    };
+    if (!response.ok || !payload.request_id) {
+      const msg = payload.message || payload.error || `No se pudo crear la solicitud (${response.status})`;
+      throw new Error(msg);
+    }
+    return payload.request_id;
   },
 
   async getJob(jobId: string): Promise<JobState> {

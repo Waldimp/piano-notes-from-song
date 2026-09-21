@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/AuthGate";
 import CloudQueuePanel from "@/components/CloudQueuePanel";
 import UploadBox from "@/components/UploadBox";
+import UsageBanner from "@/components/UsageBanner";
 import { type JobState, type SongSummary, getDataSource } from "@/lib/data";
 import { API_URL } from "@/lib/data/local";
 
@@ -33,6 +34,7 @@ export default function Home() {
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<string | null>(null);
   const [cloudReady, setCloudReady] = useState(false);
+  const [usageTick, setUsageTick] = useState(0);
 
   const reload = useCallback(() => {
     data
@@ -113,7 +115,13 @@ export default function Home() {
         )}
       </div>
 
-      <UploadBox onSubmitted={reload} />
+      <UsageBanner refreshKey={usageTick} />
+      <UploadBox
+        onSubmitted={() => {
+          reload();
+          setUsageTick((n) => n + 1);
+        }}
+      />
 
       {error && (
         <div className="notice">

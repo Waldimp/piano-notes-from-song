@@ -590,22 +590,20 @@ def test_cleaned_artifact_reuse_is_same_request_only():
 
 def test_web_immediate_wake_is_authenticated_and_secret_free():
     cloud = (ROOT / "apps/web/src/lib/data/cloud.ts").read_text()
-    wake_client = (ROOT / "apps/web/src/lib/data/wake-after-submit.ts").read_text()
+    create = (ROOT / "apps/web/src/app/api/create-request/route.ts").read_text()
     user_wake = (ROOT / "apps/web/src/app/api/wake-dispatch/route.ts").read_text()
     cron_wake = (ROOT / "apps/web/src/app/api/dispatch-wake/route.ts").read_text()
     helper = (ROOT / "apps/web/src/lib/server/wake-dispatch.ts").read_text()
     vercel = (ROOT / "apps/web/vercel.json").read_text()
     insert_fix = (ROOT / "migrations/supabase/0010_fix_requests_insert_policy.sql").read_text()
 
-    assert "requestImmediateDispatchWake" in cloud
-    assert "void requestImmediateDispatchWake" in cloud
+    assert "/api/create-request" in cloud
     assert "PRODUCTION_CANARY_DISPATCH_WAKE_SECRET" not in cloud
-    assert "PRODUCTION_CANARY_DISPATCH_WAKE_SECRET" not in wake_client
-    assert 'wakePath = "/api/wake-dispatch"' in wake_client
-    assert "requireAuthenticatedUser" in user_wake
+    assert "authorize_beta_request" in create
+    assert "wakeDispatchNext" in create
+    assert "requireUser" in user_wake
     assert "export async function POST" in user_wake
-    assert "Ignore body entirely" in user_wake
-    assert "publicWakeResponse" in user_wake
+    assert "check_beta_rate_limit" in user_wake
     assert "CRON_SECRET" in cron_wake
     assert 'action: "dispatch_next"' in helper
     assert '"/api/dispatch-wake"' in vercel
