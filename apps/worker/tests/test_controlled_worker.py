@@ -205,6 +205,12 @@ def test_claim_request_column_resolution_is_pinned_for_its_output_name():
     assert "#variable_conflict use_column" in migration
 
 
+def test_request_guard_only_reads_song_fields_inside_song_branch():
+    migration = (ROOT / "migrations/supabase/0006_fix_request_guard_record_shape.sql").read_text()
+    assert "elsif tg_table_name = 'songs' and tg_op = 'UPDATE' then" in migration
+    assert "if new.request_id is distinct from old.request_id then" in migration
+
+
 def test_checkpoint_checksum_is_fail_closed(tmp_path):
     checkpoint = tmp_path / "checkpoint.pth"
     checkpoint.write_bytes(b"pinned-model")
