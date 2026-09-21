@@ -13,6 +13,11 @@ import {
   computeWompiWebhookHash,
   verifyWompiWebhookHash,
 } from "./wompi";
+import {
+  aplicativoMatches,
+  environmentMatches,
+  isApprovedTransaction,
+} from "./validate";
 
 const root = resolve(__dirname, "../../.."); // apps/web
 const repo = resolve(root, "../..");
@@ -75,6 +80,42 @@ describe("amount matching", () => {
     expect(amountsMatch(2.99, 2.99)).toBe(true);
     expect(amountsMatch(2.99, 2.98)).toBe(false);
     expect(amountsMatch(2.99, null)).toBe(false);
+  });
+});
+
+describe("negative webhook gates", () => {
+  it("rejects productive webhook while EXPECT_PRODUCTIVE=false", () => {
+    expect(
+      environmentMatches({
+        webhookEsProductiva: true,
+        txEsReal: undefined,
+        expectProductive: false,
+      }).code
+    ).toBe("wrong_environment");
+  });
+
+  it("rejects development webhook while EXPECT_PRODUCTIVE=true", () => {
+    expect(
+      environmentMatches({
+        webhookEsProductiva: false,
+        txEsReal: false,
+        expectProductive: true,
+      }).code
+    ).toBe("wrong_environment");
+  });
+
+  it("rejects unapproved transaction", () => {
+    expect(isApprovedTransaction({ esAprobada: false })).toBe(false);
+    expect(isApprovedTransaction({ esAprobada: true })).toBe(true);
+  });
+
+  it("rejects wrong aplicativo id", () => {
+    expect(aplicativoMatches("other-app", "expected-app")).toBe(false);
+    expect(aplicativoMatches("expected-app", "expected-app")).toBe(true);
+  });
+
+  it("rejects amount mismatch as amount gate", () => {
+    expect(amountsMatch(2.99, 1.0)).toBe(false);
   });
 });
 

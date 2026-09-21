@@ -15,6 +15,11 @@ import {
   verifyWompiWebhookHash,
   wompiConfigured,
 } from "@/lib/billing/wompi";
+import {
+  aplicativoMatches,
+  environmentMatches,
+  isApprovedTransaction,
+} from "@/lib/billing/validate";
 import { serviceClient } from "@/lib/server/auth";
 
 export type WompiWebhookPayload = {
@@ -236,11 +241,17 @@ export async function processWompiWebhook(opts: {
     return { status: http, body: { ok: false, code: reason } };
   };
 
-  if (Boolean(payload.EsProductiva) !== cfg.expectProductive) {
+  if (
+    !environmentMatches({
+      webhookEsProductiva: payload.EsProductiva,
+      txEsReal: undefined,
+      expectProductive: cfg.expectProductive,
+    }).ok
+  ) {
     return reject("wrong_environment");
   }
 
-  if (payload.Aplicativo?.Id && payload.Aplicativo.Id !== cfg.aplicativoId) {
+  if (!aplicativoMatches(payload.Aplicativo?.Id, cfg.aplicativoId)) {
     return reject("wrong_aplicativo");
   }
 
@@ -278,7 +289,7 @@ export async function processWompiWebhook(opts: {
     return reject("transaction_lookup_failed", 502);
   }
 
-  if (!tx.esAprobada) {
+  if (!isApprovedTransaction(tx)) {
     await sb
       .from("billing_purchases")
       .update({ status: "failed", updated_at: new Date().toISOString() })
@@ -286,7 +297,13 @@ export async function processWompiWebhook(opts: {
     return reject("transaction_not_approved");
   }
 
-  if (Boolean(tx.esReal) !== cfg.expectProductive) {
+  if (
+    !environmentMatches({
+      webhookEsProductiva: payload.EsProductiva,
+      txEsReal: tx.esReal,
+      expectProductive: cfg.expectProductive,
+    }).ok
+  ) {
     return reject("wrong_environment_tx");
   }
 

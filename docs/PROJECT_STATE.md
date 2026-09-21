@@ -41,8 +41,8 @@ Beta cerrada multiusuario con cuotas. Pagos: código listo, sin credenciales rea
 
 ## Último trabajo completado
 
-2026-09-21: Preparación Wompi (0012, checkout/webhook, /pricing, tests, docs).
+2026-09-21: Intento E2E Mini Pack sandbox — **HARD STOP** sin credenciales Wompi en Vercel/local. UX return corregida; gates negativos unit-tested; helper `e2e_wompi_mini_pack.py`.
 
 ## Siguiente tarea
 
-Aplicar 0012 + credenciales sandbox Wompi; E2E Mini Pack desarrollo; Terms/Privacy.
+Añadir en Vercel (`piano-notes-from-song`) las env Wompi de desarrollo + `NEXT_PUBLIC_APP_URL` + `BILLING_ENABLED=true`, redeploy, y completar E2E Mini Pack.

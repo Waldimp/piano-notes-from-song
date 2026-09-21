@@ -124,16 +124,65 @@ Por eso:
 
 Ver `.env.example`.
 
+## Dónde configurar (sandbox E2E)
+
+Proyecto Vercel: **`piano-notes-from-song`** (alias `https://piano-notes-from-song.vercel.app`).
+
+Variables **server-only** (Production + Preview; nunca `NEXT_PUBLIC_*` excepto la URL pública):
+
+| Variable | Target | Notas |
+|---|---|---|
+| `WOMPI_CLIENT_ID` | Production (+ Preview si se prueba ahí) | App ID panel |
+| `WOMPI_CLIENT_SECRET` | idem | API Secret — **Secret**, no loggear |
+| `WOMPI_APLICATIVO_ID` | idem | Id negocio |
+| `WOMPI_EXPECT_PRODUCTIVE` | idem | `false` mientras el aplicativo esté en desarrollo |
+| `BILLING_ENABLED` | idem | `true` solo mientras se valide sandbox |
+| `NEXT_PUBLIC_APP_URL` | idem | `https://piano-notes-from-song.vercel.app` |
+
+Defaults fijos (opcionales): `WOMPI_AUDIENCE=wompi_api`, `WOMPI_TOKEN_URL=https://id.wompi.sv/connect/token`, `WOMPI_API_BASE_URL=https://api.wompi.sv`.
+
+Tras añadir env vars: **redeploy** para que checkout/webhook las vean.
+
+Webhook público: `https://piano-notes-from-song.vercel.app/api/billing/wompi/webhook`
+
+Helper: `python scripts/production-canary/e2e_wompi_mini_pack.py --check-config`
+
+## Estado E2E Mini Pack (2026-09-21)
+
+**HARD STOP — credenciales Wompi no disponibles** en:
+
+- `.env` / `.env.local` locales
+- Variables Vercel del proyecto `piano-notes-from-song` (inspectadas: solo Supabase/CRON/wake; sin `WOMPI_*` ni `BILLING_ENABLED` ni `NEXT_PUBLIC_APP_URL`)
+
+Por eso **no** se ejecutó checkout real ni webhook real. Practice/Plus siguen deshabilitados. `BILLING_ENABLED` permanece **false** (default).
+
+Cuando existan credenciales de aplicativo en **modo desarrollo**:
+
+1. Set env + redeploy
+2. `--check-config` debe salir `config_ok`
+3. Usuario autenticado → Buy Mini Pack → pagar en UI Wompi (desarrollo; CVV `111` = denegada)
+4. Confirmar `billing_purchases.settled_at`, ledger `purchase_grant` +5, duplicate webhook sin segundo grant
+
 ## Checklist sandbox
 
 - [ ] Negocio en **modo desarrollo** en panel.wompi.sv
 - [ ] Copiar App ID / API Secret / id aplicativo
-- [ ] `WOMPI_EXPECT_PRODUCTIVE=false`, `BILLING_ENABLED=true`
-- [ ] Aplicar migration `0012`
-- [ ] Webhook URL pública: `https://<app>/api/billing/wompi/webhook`
-- [ ] Comprar Mini Pack de prueba (CVV `111` = denegada)
+- [ ] Env en Vercel + `WOMPI_EXPECT_PRODUCTIVE=false`, `BILLING_ENABLED=true`
+- [x] Migration `0012` aplicada
+- [ ] Webhook URL pública registrada / usada en EnlacePago
+- [ ] Comprar Mini Pack de prueba
 - [ ] Verificar +5 créditos una sola vez; reenviar webhook no duplica
 - [ ] Redirect no cambia balance por sí solo
+- [ ] Volver `BILLING_ENABLED=false` o dejarlo true solo en Preview — **no** productivo todavía
+
+## Cutover development → production (NO hacer todavía)
+
+1. En panel Wompi, pasar el negocio a productivo (o usar App ID/Secret productivos distintos).
+2. En Vercel: `WOMPI_EXPECT_PRODUCTIVE=true` + credenciales productivas.
+3. Redeploy.
+4. Verificar que webhooks `EsProductiva=false` se rechazan (`wrong_environment`).
+5. Mantener `BILLING_SUBSCRIPTIONS_ENABLED=false` hasta lifecycle recurrente.
+6. Smoke test Mini Pack real con monto mínimo controlado + Terms/Privacy.
 
 ## Checklist producción
 
@@ -151,7 +200,7 @@ Ver `.env.example`.
 | POST | `/api/billing/checkout` | Auth; `product_code` |
 | POST | `/api/billing/wompi/webhook` | Raw body + `wompi_hash` |
 | GET | `/api/billing/status` | Own catalog/usage/purchases |
-| UI | `/pricing`, `/billing/return`, `/account` | Mínima |
+| UI | `/pricing`, `/billing/return`, `/account` | Return **no** afirma éxito |
 
 ## Qué sacar del panel Wompi
 
