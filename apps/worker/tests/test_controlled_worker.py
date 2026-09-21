@@ -588,6 +588,31 @@ def test_cleaned_artifact_reuse_is_same_request_only():
     assert "Does not permit cross-request ownership transfer" in sql
 
 
+def test_web_immediate_wake_is_authenticated_and_secret_free():
+    cloud = (ROOT / "apps/web/src/lib/data/cloud.ts").read_text()
+    wake_client = (ROOT / "apps/web/src/lib/data/wake-after-submit.ts").read_text()
+    user_wake = (ROOT / "apps/web/src/app/api/wake-dispatch/route.ts").read_text()
+    cron_wake = (ROOT / "apps/web/src/app/api/dispatch-wake/route.ts").read_text()
+    helper = (ROOT / "apps/web/src/lib/server/wake-dispatch.ts").read_text()
+    vercel = (ROOT / "apps/web/vercel.json").read_text()
+    insert_fix = (ROOT / "migrations/supabase/0010_fix_requests_insert_policy.sql").read_text()
+
+    assert "requestImmediateDispatchWake" in cloud
+    assert "void requestImmediateDispatchWake" in cloud
+    assert "PRODUCTION_CANARY_DISPATCH_WAKE_SECRET" not in cloud
+    assert "PRODUCTION_CANARY_DISPATCH_WAKE_SECRET" not in wake_client
+    assert 'wakePath = "/api/wake-dispatch"' in wake_client
+    assert "requireAuthenticatedUser" in user_wake
+    assert "export async function POST" in user_wake
+    assert "Ignore body entirely" in user_wake
+    assert "publicWakeResponse" in user_wake
+    assert "CRON_SECRET" in cron_wake
+    assert 'action: "dispatch_next"' in helper
+    assert '"/api/dispatch-wake"' in vercel
+    assert "5 12 * * *" in vercel
+    assert "requested_by = auth.uid()" in insert_fix
+
+
 def test_controlled_runner_keeps_automatic_retries_disabled():
     runner = (ROOT / "apps/worker/piano_worker/controlled_runner.py").read_text()
     assert '"p_retryable": False' in runner

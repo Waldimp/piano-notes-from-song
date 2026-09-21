@@ -5,6 +5,7 @@ import { isPianoTranscription } from "@piano/contracts";
 
 import { supabase } from "../supabase";
 import type { DataSource, JobState, JobStatus, SongSummary } from "./types";
+import { requestImmediateDispatchWake } from "./wake-after-submit";
 
 /** Las URLs firmadas duran 12 h: una sesion larga de practica sin recargar. */
 const SIGNED_URL_SECONDS = 12 * 60 * 60;
@@ -104,6 +105,10 @@ export const cloudDataSource: DataSource = {
       .select("id")
       .single();
     if (error || !data) throw new Error(`No se pudo crear la solicitud: ${error?.message}`);
+
+    // Best-effort immediate wake. Upload already succeeded — keep queued if wake fails.
+    void requestImmediateDispatchWake(sb).catch(() => undefined);
+
     return data.id;
   },
 

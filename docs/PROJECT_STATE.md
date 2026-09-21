@@ -8,11 +8,12 @@ Actualizado: 2026-09-21
 
 ### Estado operativo
 
-- Migrations 0002–0009 aplicadas en producción (0002–0007 históricas; 0008–0009 general dispatch).
+- Migrations 0002–0010 aplicadas en producción (0002–0007 históricas; 0008–0009 general dispatch; 0010 restore INSERT policy web).
 - Modal T4 Environment `production-canary` desplegado (nombre histórico; opera como worker general).
 - `worker_control.mode=modal`.
 - `kill_switch=false`.
-- Dispatcher general activo vía `action=dispatch_next` + wake autenticado.
+- Wake primario: tras `INSERT requests` la web llama `POST /api/wake-dispatch` (sesión autenticada; secret solo en servidor) → `dispatch_next`.
+- Recovery: cron Hobby diario `GET/POST /api/dispatch-wake` (`CRON_SECRET`).
 - 0 GPU/contenedores activos en reposo (`min_containers=0`).
 - Worker local disponible como fallback (`mode=local`).
 - Hard stop de gasto: USD 20 en ledger.
@@ -49,15 +50,15 @@ MVP funcional con procesamiento cloud automático controlado para beta pequeña.
 
 ## Último trabajo completado
 
-2026-09-21: activación Modal general **cerrada** en producción.
+2026-09-21: wake inmediato post-upload (sin Pro / sin Webhook).
 
-- `PRODUCTION_CANARY_DISPATCH_WAKE_SECRET` configurado en Vercel (Production + Preview).
-- Cron productivo: `GET/POST /api/dispatch-wake` (auth `CRON_SECRET` → Edge `dispatch_next`). En Hobby el schedule es `5 12 * * *` (1×/día; Vercel bloquea `* * * * *`).
-- E2E vía ruta wake: `48de152d-…` y `dd9cfaea-…` → `queued` → `processing` → `done` (Modal, 1 song c/u, 1,356 notas). Segundo wake concurrente → `idle` / sin doble dispatch.
-- Estado final: `mode=modal`, `kill_switch=false`, outbox `closed`, leases=0, `_staging=0`, GPU/containers=0, net spend ledger ≈ $0.054 (hard stop $20).
-
-Deuda no bloqueante: wake no es near-realtime en Hobby (cron diario) ni Database Webhook/`pg_net`; naming histórico `dispatch-modal-staging` / `production-canary`; retries automáticos deshabilitados.
+- Camino primario: `submitAudio` (browser INSERT) → `POST /api/wake-dispatch` (JWT de sesión; secret solo en servidor) → `dispatch_next` → Modal.
+- Recovery: cron Hobby `5 12 * * *` en `/api/dispatch-wake`.
+- El wake es best-effort: si falla, la request permanece `queued`.
+- Fix 0010: policy `requests: crear autenticados` restaurada a `requested_by = auth.uid()` (estaba `WITH CHECK (false)`).
+- E2E: `6706951e-…` (~26 s a processing) y `f9991683-…` (~7 s) → done; outbox closed; leases=0; `_staging=0`; GPU=0; net spend ≈ $0.072.
+- Modal sigue sin polling. `mode=modal`, `kill_switch=false`.
 
 ## Siguiente tarea
 
-Mejorar UX/landing y medir uso real en beta. Opcional: Pro (cron frecuente) o Database Webhook/`pg_net` para wake inmediato; renombrar deudas cosméticas cuando no haya riesgo operativo.
+Mejorar UX/landing y medir uso real en beta. Opcional: rate limiting del wake en Beta Readiness; renombrar deudas cosméticas.
