@@ -4,15 +4,16 @@ Actualizado: 2026-09-21
 
 ## Fase actual
 
-**Wompi billing preparation** sobre Beta Readiness. Modal general intacto. Créditos/entitlements siguen en Postgres; Wompi es solo PSP.
+**Mini Pack production-ready (prep)** — cobros reales **no** activados. Modal general intacto. Créditos/entitlements en Postgres; Wompi es solo PSP vía EnlacePago.
 
 ### Estado operativo
 
 - Migrations 0002–0012 en producción (0012 Wompi billing prep).
 - Modal T4 `production-canary`: `mode=modal`, `kill_switch=false`.
 - Wake primario: create-request → wake-dispatch; cron Hobby = recovery.
-- FREE 3×60s; Mini Pack checkout preparado (`BILLING_ENABLED` default off).
-- Practice/Plus: catálogo + UI, subscriptions bloqueadas hasta lifecycle Wompi.
+- FREE 3×60s; Mini Pack checkout activo en **sandbox** (`BILLING_ENABLED=true`, `WOMPI_EXPECT_PRODUCTIVE=false`).
+- Practice/Plus: catálogo + UI “Coming soon”; subscriptions bloqueadas.
+- Legales: `/terms`, `/privacy`, `/refund` (públicas).
 
 ## Arquitectura actual
 
@@ -26,23 +27,26 @@ Detalle: [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md), [`BETA_READINESS.md`](B
 
 - Next.js 15, React 19, TypeScript, Canvas 2D.
 - Python 3.12, FastAPI, PyTorch 2.11.0 + CUDA 12.8, FFmpeg.
-- Vercel, Supabase, Modal T4, Wompi (sandbox pending credentials).
+- Vercel, Supabase, Modal T4, Wompi (modo desarrollo / prueba).
 
 ## Estado del producto
 
-Beta cerrada multiusuario con cuotas. Pagos: código listo, sin credenciales reales ni cobros.
+Beta cerrada multiusuario con cuotas. Mini Pack sandbox E2E validado. Go-live productivo documentado pero **no ejecutado**.
 
 ## Decisiones activas
 
 - Preservar MVP; escalar por fases.
 - Wompi vía EnlacePago (no 3DS propio).
 - Créditos por tutorial; reproducción sin costo de crédito.
-- R2 / branding / Terms: pendientes.
+- R2 / branding: pendientes.
+- Cutover productivo: checklist de un solo uso en `WOMPI_INTEGRATION.md` — pendiente decisión humana.
 
 ## Último trabajo completado
 
-2026-09-21: **E2E Mini Pack sandbox PASSED** — purchase `5913c4ec…`, tx `88c8ed50…`, créditos 3→8, webhook HMAC OK, settle idempotente. `BILLING_ENABLED=true` en Vercel Production con `WOMPI_EXPECT_PRODUCTIVE=false`.
+2026-09-21: **E2E Mini Pack sandbox PASSED** — purchase `5913c4ec…`, tx `88c8ed50…`, créditos 3→8, webhook HMAC OK, settle idempotente.
+
+2026-09-21: **Prep production-ready sin cobro real** — legales, UX mínima (email en account, links legales, Practice/Plus “Coming soon”), kill-switch documentado, checklist cutover. `WOMPI_EXPECT_PRODUCTIVE` permanece `false`.
 
 ## Siguiente tarea
 
-Decidir go-live productivo (Terms/Privacy + `WOMPI_EXPECT_PRODUCTIVE=true`) o dejar billing en desarrollo. Practice/Plus siguen bloqueados.
+Cuando se decida go-live: ejecutar checklist cutover en `WOMPI_INTEGRATION.md` (panel productivo → `WOMPI_EXPECT_PRODUCTIVE=true` → redeploy → **una** compra $2.99 controlada). Practice/Plus siguen fuera de alcance.

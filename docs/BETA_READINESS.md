@@ -57,12 +57,12 @@ python scripts/production-canary/admin_set_entitlement.py --user-id <uuid> --pla
 
 ## Pagos
 
-Proveedor elegido: **Wompi El Salvador**. Preparación en [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md) (migration 0012). Sin cobros hasta sandbox + `BILLING_ENABLED`.
+Proveedor: **Wompi El Salvador**. Mini Pack sandbox E2E passed; prep production-ready sin cobro real (`WOMPI_EXPECT_PRODUCTIVE=false`). Detalle: [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md).
 
 ## Pendiente
 
-- Credenciales sandbox Wompi + E2E Mini Pack
-- Terms/Privacy
+- Cutover productivo Wompi (checklist en WOMPI_INTEGRATION) — decisión humana
+- Practice/Plus lifecycle
 - Rate limits más finos / CAPTCHA
 - Branding
 - R2

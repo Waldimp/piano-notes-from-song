@@ -58,7 +58,7 @@ export default function AccountPage() {
         <div>
           <h1>Account</h1>
           <p className="subtitle" style={{ margin: 0 }}>
-            {email}
+            Signed in as <strong>{email}</strong>
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>

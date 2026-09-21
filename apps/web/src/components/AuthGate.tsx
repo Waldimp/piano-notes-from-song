@@ -10,6 +10,7 @@
 
 import { type ReactNode, createContext, useContext, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { usePathname } from "next/navigation";
 
 import { isCloudMode, supabase } from "@/lib/supabase";
 import LoginForm from "./LoginForm";
@@ -26,7 +27,15 @@ export function useAuth(): AuthValue {
   return useContext(AuthContext);
 }
 
+const PUBLIC_PATHS = ["/terms", "/privacy", "/refund"];
+
+function isPublicPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 export default function AuthGate({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [recovering, setRecovering] = useState(false);
 
@@ -43,6 +52,10 @@ export default function AuthGate({ children }: { children: ReactNode }) {
   }, []);
 
   if (!isCloudMode) return <>{children}</>;
+
+  if (isPublicPath(pathname)) {
+    return <>{children}</>;
+  }
 
   if (session === undefined) {
     return <div className="message">Cargando…</div>;

@@ -111,4 +111,11 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Fecha:** 2026-09-21
 **Decisión:** Integrar Wompi El Salvador como único payment processor vía `POST /EnlacePago` (pagos únicos) y preparar `POST /EnlacePagoRecurrente` (suscripciones), sin captura de tarjeta en nuestro frontend. Créditos/entitlements permanecen en Postgres; webhooks fall-closed con HMAC `wompi_hash` + confirmación `GET /TransaccionCompra/{id}`.
 **Motivo:** Necesitamos cobros reales en SV sin rediseñar el ledger beta; la UI alojada por Wompi evita PAN/CVV en Pianissimo.
-**Estado:** Vigente — preparación en código (`0012`, `/api/billing/*`). Mini Pack listo para sandbox. Practice/Plus feature-flagged hasta confirmar lifecycle de renovación/cancelación de suscriptores en docs Wompi. Ver [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md).
+**Estado:** Vigente — Mini Pack sandbox E2E passed; código production-ready. Practice/Plus feature-flagged hasta lifecycle recurrente. Ver [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md).
+
+## DEC-015
+
+**Fecha:** 2026-09-21
+**Decisión:** Declarar Mini Pack **production-ready** (legales, kill switch, checklist cutover, tests) **sin** activar cobros reales: `WOMPI_EXPECT_PRODUCTIVE=false`, negocio Wompi en desarrollo, sin flip a productivo ni compra real hasta decisión explícita posterior.
+**Motivo:** Separar preparación técnica del go-live financiero reduce riesgo de cargo accidental; sandbox debe seguir usable.
+**Estado:** Vigente. Checklist de activación futura en [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md).

@@ -116,7 +116,7 @@ export default function PricingPage() {
           <button className="btn" type="button" disabled title="Subscriptions setup in progress">
             Subscribe Practice
           </button>
-          <p className="subtitle">Payments setup in progress</p>
+          <p className="subtitle">Coming soon</p>
         </article>
 
         <article>
@@ -127,9 +127,17 @@ export default function PricingPage() {
           <button className="btn" type="button" disabled title="Subscriptions setup in progress">
             Subscribe Plus
           </button>
-          <p className="subtitle">Payments setup in progress</p>
+          <p className="subtitle">Coming soon</p>
         </article>
       </section>
+
+      <p className="subtitle" style={{ marginTop: "2rem" }}>
+        <Link href="/terms">Terms</Link>
+        {" · "}
+        <Link href="/privacy">Privacy</Link>
+        {" · "}
+        <Link href="/refund">Refunds</Link>
+      </p>
     </main>
   );
 }
