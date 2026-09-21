@@ -44,10 +44,10 @@ Modal **no** hace polling de Supabase.
 
 ## Wake
 
-- Secreto: `PRODUCTION_CANARY_DISPATCH_WAKE_SECRET`
-- Ruta web: `POST/GET /api/dispatch-wake` (protegida por `CRON_SECRET`)
-- Cron Vercel: cada minuto
-- Script: `scripts/production-canary/wake_dispatch.py --wake`
+- Secreto Edge: `PRODUCTION_CANARY_DISPATCH_WAKE_SECRET` (también en Vercel Production + Preview)
+- Ruta web: `POST/GET /api/dispatch-wake` (protegida por `CRON_SECRET`; body fijo `{action: dispatch_next}`, sin UUID de cliente)
+- Cron Vercel Hobby: `5 12 * * *` en `apps/web/vercel.json` (plan Hobby no admite cron cada minuto)
+- Script: `scripts/production-canary/wake_dispatch.py --wake` / `invoke_prod_wake.py`
 
 ## Deuda de naming (no bloqueante)
 

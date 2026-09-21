@@ -49,20 +49,15 @@ MVP funcional con procesamiento cloud automático controlado para beta pequeña.
 
 ## Último trabajo completado
 
-2026-09-21: procesamiento Modal general habilitado y validado.
+2026-09-21: activación Modal general **cerrada** en producción.
 
-Smoke general + 2 jobs adicionales (El Carbonero, 193.608 s):
+- `PRODUCTION_CANARY_DISPATCH_WAKE_SECRET` configurado en Vercel (Production + Preview).
+- Cron productivo: `GET/POST /api/dispatch-wake` (auth `CRON_SECRET` → Edge `dispatch_next`). En Hobby el schedule es `5 12 * * *` (1×/día; Vercel bloquea `* * * * *`).
+- E2E vía ruta wake: `48de152d-…` y `dd9cfaea-…` → `queued` → `processing` → `done` (Modal, 1 song c/u, 1,356 notas). Segundo wake concurrente → `idle` / sin doble dispatch.
+- Estado final: `mode=modal`, `kill_switch=false`, outbox `closed`, leases=0, `_staging=0`, GPU/containers=0, net spend ledger ≈ $0.054 (hard stop $20).
 
-| Request | Resultado | Notas | Costo observado | GPU-s |
-|---|---|---:|---:|---:|
-| `9a08febe-…` | done / modal | 1,356 | $0.00944 | 47.4 |
-| `9a769feb-…` | done / modal | 1,356 | $0.00617 | 31.0 |
-| `b5187e8b-…` | done / modal | 1,356 | $0.00597 | 30.0 |
-
-Net spend ledger ≈ $0.041 (hard stop $20). Prueba de pausa: wake idle y request permaneció `queued`. Estado final: `mode=modal`, `kill_switch=false`.
-
-Deuda no bloqueante: wake por cron (~1 min) en lugar de Database Webhook; naming histórico `dispatch-modal-staging` / `production-canary`; retries automáticos siguen deshabilitados (sí se corrigió reutilización de rutas `cleaned` del mismo request). Requiere `PRODUCTION_CANARY_DISPATCH_WAKE_SECRET` también en Vercel para el cron `/api/dispatch-wake`.
+Deuda no bloqueante: wake no es near-realtime en Hobby (cron diario) ni Database Webhook/`pg_net`; naming histórico `dispatch-modal-staging` / `production-canary`; retries automáticos deshabilitados.
 
 ## Siguiente tarea
 
-Mejorar UX/landing y medir uso real en beta. Opcional: Database Webhook/`pg_net` para wake inmediato; renombrar deudas cosméticas cuando no haya riesgo operativo.
+Mejorar UX/landing y medir uso real en beta. Opcional: Pro (cron frecuente) o Database Webhook/`pg_net` para wake inmediato; renombrar deudas cosméticas cuando no haya riesgo operativo.

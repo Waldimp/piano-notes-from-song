@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/dispatch-wake",
-      "schedule": "* * * * *"
+      "schedule": "5 12 * * *"
     }
   ]
 }
