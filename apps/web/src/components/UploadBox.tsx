@@ -3,8 +3,8 @@
 /**
  * Subida de audio → job/solicitud → tutorial.
  * Local: el backend transcribe en background y al terminar abre el tutorial.
- * Nube: crea una solicitud que la PC con GPU procesa cuando su worker está
- * encendido; aquí solo se informa el estado.
+ * Nube: crea una solicitud que el control plane despacha a Modal cuando el
+ * modo operativo lo permite; aquí solo se informa el estado.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -139,8 +139,8 @@ export default function UploadBox({ onSubmitted }: { onSubmitted?: () => void })
         <>
           <p className="title">✅ Solicitud enviada: {phase.name}</p>
           <p className="detail">
-            Se transcribirá cuando la computadora con GPU tenga el worker encendido. Puedes
-            seguir el estado en la lista de solicitudes de abajo.
+            Se encoló correctamente. Cuando el procesamiento en la nube esté activo, Modal la
+            transcribirá automáticamente. Puedes seguir el estado en la lista de solicitudes.
             <br />
             <button className="btn small" type="button" onClick={() => setPhase({ kind: "idle" })}>
               Enviar otra

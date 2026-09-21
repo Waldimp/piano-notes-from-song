@@ -16,7 +16,7 @@ function formatDuration(seconds: number): string {
 }
 
 const STATUS_LABEL: Record<JobState["status"], string> = {
-  queued: "En cola — esperando al worker",
+  queued: "En cola — esperando procesamiento",
   processing: "Transcribiendo…",
   done: "Lista",
   error: "Error",
@@ -131,7 +131,7 @@ export default function Home() {
         <p className="subtitle">
           Aún no hay canciones.{" "}
           {data.kind === "cloud"
-            ? "Sube un audio arriba: se transcribirá cuando el worker esté encendido."
+            ? "Sube un audio arriba: se transcribirá automáticamente cuando el procesamiento en la nube esté activo."
             : "Sube una arriba o transcribe desde la terminal."}
         </p>
       )}
@@ -220,7 +220,7 @@ export default function Home() {
           {jobs.length === 0 && (
             <p className="subtitle" style={{ fontSize: "0.9rem" }}>
               No hay solicitudes pendientes. Cuando subas una canción aparecerá aquí con su
-              estado; se transcribe cuando el worker de la PC está encendido.
+              estado; el control plane la envía a Modal si el modo operativo lo permite.
             </p>
           )}
           {jobs.map((j) => (
