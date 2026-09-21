@@ -84,3 +84,10 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Paradas obligatorias:** STOP si cambia el baseline; si existen requests/leases activos; si los hashes no coinciden; si falla 0002/0003 o cualquier invariante DB/RLS/Storage; si el control no queda `paused` con kill switch activo; si existe GPU previa no explicada; o si cualquier canary deja estado ambiguo, duplicados, artefactos pendientes o costo inesperado.
 **Límite de autorización:** El hilo 02 puede ejecutar únicamente la migración cerrada y los canaries indicados. No puede habilitar procesamiento general, hacer push ni omitir rollback ante inconsistencia sin una decisión posterior del MASTER.
 **Estado:** Aceptada. 01G cerrado con GO técnico; 02 preparado pero todavía no iniciado.
+
+## DEC-011
+
+**Fecha:** 2026-09-21
+**Decisión:** Cerrar `02 - CONTROLLED PRODUCTION MIGRATION` tras un único canary production-canary validado end-to-end en Modal T4.
+**Motivo:** El UUID `ceec6e6e-29ac-4289-bf06-61b967140817` llegó a `done` mediante Supabase → Modal T4 → Storage, con un único song, duración `193.608 s`, 1,356 notas, 217 pedales y cero eventos descartados. Se verificaron ownership, hashes, artifacts, `_staging=0`, outbox/leases cerrados, costo settled y cero recursos activos.
+**Estado:** Completada. El sistema queda `paused` con kill switch activo; dispatcher sin trigger general y procesamiento general todavía deshabilitado. Deuda no bloqueante: los retries posteriores a compensación pueden requerir reutilización formal de rutas `cleaned`; no se implementó por la escala actual.

@@ -37,9 +37,11 @@ MVP funcional y usado satisfactoriamente. El baseline del repositorio quedó ver
 
 2026-09-19: `01G - PRODUCTION PREFLIGHT & BACKUP` cerrado con GO técnico. Se confirmó PostgreSQL 17.6, tres requests `done`, cero `processing`, ausencia de colisiones con 0002/0003 y baseline compatible. El dump custom de PostgreSQL mide 298,246 bytes, tiene SHA-256 `c5f6e392516b75bba8569ac80f99b6ce0a5afb177b354471f04f6a5e2da950ad` y pasó `pg_restore --list`. Se respaldaron seis objetos de Storage por 8,184,488 bytes; el manifiesto tiene SHA-256 `4952a0fc76587f41470f67ddf51f35d870206489b1a363c395b96e8cc87a78ad`. No se ensayó un restore completo; ese riesgo residual fue aceptado. Producción no fue modificada.
 
-## Trabajo en curso
+## Último trabajo completado
 
-Ejecución remota en pausa hasta iniciar explícitamente `02 - CONTROLLED PRODUCTION MIGRATION`. Ese único hilo concentrará precheck final, mantenimiento, 0002/0003, validación, despliegue cerrado de Modal, un canary, dos o tres canaries adicionales como máximo y rollback si aparece una inconsistencia. No se ha aplicado SQL, desplegado dispatcher/worker, iniciado GPU ni procesado requests en esta fase. El procesamiento general de la cola sigue desautorizado.
+2026-09-21: `02 - CONTROLLED PRODUCTION MIGRATION` cerrado con un canary production-canary exitoso. El UUID `ceec6e6e-29ac-4289-bf06-61b967140817` completó el pipeline Supabase → Modal T4 → Storage → `done`: creó exactamente un song, duración `193.608 s`, `1,356` notas, `217` pedales y `0` eventos descartados. Se verificaron ownership, rutas y SHA-256 de artifacts, cero `_staging`, outbox cerrado, lease cerrado, costo settled y cero recursos Modal/GPU activos. El control quedó en `mode=paused`, `kill_switch=true`; el dispatcher no tiene trigger general y el procesamiento general sigue deshabilitado.
+
+Deuda no bloqueante: los retries posteriores a una compensación pueden requerir reutilización formal de rutas `cleaned`; no se implementó todavía por la escala actual.
 
 ## Fase 3 reorganizada
 
@@ -60,7 +62,7 @@ Sin tocar infraestructura remota:
 4. Preparar runbook minuto a minuto, queries de invariantes, criterios de aborto, responsables y ventana de mantenimiento.
 5. Ejecutar revisión final de seguridad y operación. Sólo entonces el MASTER puede autorizar la ventana.
 
-### Fase 3C — `02 - CONTROLLED PRODUCTION MIGRATION`
+### Fase 3C — `02 - CONTROLLED PRODUCTION MIGRATION` — completada
 
 Un único hilo ejecutará durante una ventana corta de mantenimiento, con STOP interno ante cualquier inconsistencia:
 
@@ -96,8 +98,8 @@ Presentar evidencia al MASTER. El éxito de los canaries no autoriza consumo gen
 
 ## Siguiente tarea
 
-Cerrar en Git los cambios locales de 01G y preparar el prompt definitivo de `02 - CONTROLLED PRODUCTION MIGRATION`. La migración no debe comenzar hasta que el MASTER inicie expresamente ese hilo. El restore completo no se ensayó y permanece como riesgo residual aceptado. El éxito de los canaries tampoco autoriza procesamiento general.
+No habilitar procesamiento general. Cualquier promoción de Modal más allá del canary requiere una decisión explícita posterior del MASTER.
 
-## Blockers
+## Commits relevantes de 02
 
-No quedan bloqueantes técnicos de preflight: identidad Supabase, catálogo productivo, backup PostgreSQL, copia de Storage, hashes y compatibilidad de 0002/0003 fueron verificados. Permanecen como condiciones operativas dentro de 02: baseline sin cambios, cierre de nuevas altas, worker local disponible, migraciones con hashes exactos, creación y validación inmediata de `paused`/kill switch, endpoint Modal y allowlist revisados antes del deploy, dispatcher sin trigger general y selección de un UUID canary. La allowlist sigue vacía y fail-closed hasta disponer del endpoint real. Los cambios locales de 01G aún no tienen commit. Cualquier cambio del baseline o incumplimiento de estas condiciones obliga a STOP.
+`5357010`, `9059ee0`, `efc0879`, `5917baa` y `544b1d2` documentan el packaging del smoke, las correcciones del control-plane y la recuperación determinista usada durante el canary.
