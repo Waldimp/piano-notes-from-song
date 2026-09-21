@@ -43,3 +43,4 @@ data/library.db
 # contain database dumps, Storage object maps, or other operational metadata.
 /.local-backups/
 /.local-secrets/
+/supabase/.temp/
