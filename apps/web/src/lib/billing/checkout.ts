@@ -29,12 +29,16 @@ export type WompiWebhookPayload = {
   ResultadoTransaccion?: string;
   EsProductiva?: boolean;
   CodigoAutorizacion?: string;
+  ModuloUtilizado?: string;
   Aplicativo?: { Id?: string; Nombre?: string };
   EnlacePago?: {
     Id?: number;
     IdentificadorEnlaceComercio?: string;
     NombreProducto?: string;
   };
+  /** Not confirmed in official webhook docs for recurrent charges — tolerate but do not settle on alone. */
+  IdSuscripcion?: string;
+  idSuscripcion?: string;
 };
 
 export async function createCheckoutForUser(opts: {
@@ -191,6 +195,28 @@ export async function processWompiWebhook(opts: {
   const commerceLink = payload.EnlacePago?.IdentificadorEnlaceComercio?.trim();
   if (!idTransaccion) {
     return { status: 400, body: { ok: false, code: "missing_transaction_id" } };
+  }
+
+  // One-time Mini Pack requires IdentificadorEnlaceComercio (existing path).
+  // Without it, never invent subscription settlement — docs do not confirm
+  // webhook↔subscriber correlation for EnlacePagoRecurrente.
+  if (!commerceLink) {
+    const modulo = payload.ModuloUtilizado ?? "";
+    const hasSubHint =
+      Boolean(payload.IdSuscripcion || payload.idSuscripcion) ||
+      /recurrent|suscrip/i.test(modulo);
+    if (hasSubHint || !payload.EnlacePago) {
+      return {
+        status: 501,
+        body: {
+          ok: false,
+          code: "recurrent_lifecycle_blocked",
+          detail:
+            "Subscription webhooks are not settled until Wompi documents subscriber correlation",
+        },
+      };
+    }
+    return { status: 400, body: { ok: false, code: "missing_commerce_link" } };
   }
 
   const sb = serviceClient();

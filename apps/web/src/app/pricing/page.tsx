@@ -111,23 +111,34 @@ export default function PricingPage() {
         <article>
           <h2>{practice.displayName}</h2>
           <p>
-            ${practice.priceUsd.toFixed(2)}/mo — {practice.credits} credits per period.
+            ${practice.priceUsd.toFixed(2)} / month — {practice.credits} tutorials /
+            period
           </p>
-          <button className="btn" type="button" disabled title="Subscriptions setup in progress">
+          <button
+            className="btn"
+            type="button"
+            disabled
+            title="Wompi subscription lifecycle partially ready — affiliation blocked until docs confirm correlation"
+          >
             Subscribe Practice
           </button>
-          <p className="subtitle">Coming soon</p>
+          <p className="subtitle">Coming soon (subscriptions partially ready)</p>
         </article>
 
         <article>
           <h2>{plus.displayName}</h2>
           <p>
-            ${plus.priceUsd.toFixed(2)}/mo — {plus.credits} credits per period.
+            ${plus.priceUsd.toFixed(2)} / month — {plus.credits} tutorials / period
           </p>
-          <button className="btn" type="button" disabled title="Subscriptions setup in progress">
+          <button
+            className="btn"
+            type="button"
+            disabled
+            title="Wompi subscription lifecycle partially ready — affiliation blocked until docs confirm correlation"
+          >
             Subscribe Plus
           </button>
-          <p className="subtitle">Coming soon</p>
+          <p className="subtitle">Coming soon (subscriptions partially ready)</p>
         </article>
       </section>
 

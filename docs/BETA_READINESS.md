@@ -57,12 +57,13 @@ python scripts/production-canary/admin_set_entitlement.py --user-id <uuid> --pla
 
 ## Pagos
 
-Proveedor: **Wompi El Salvador**. Mini Pack sandbox E2E passed; prep production-ready sin cobro real (`WOMPI_EXPECT_PRODUCTIVE=false`). Detalle: [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md).
+Proveedor: **Wompi El Salvador**. Mini Pack sandbox E2E passed. Practice/Plus: **SUBSCRIPTIONS PARTIALLY READY** (gaps docs). Detalle: [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md).
 
 ## Pendiente
 
-- Cutover productivo Wompi (checklist en WOMPI_INTEGRATION) — decisión humana
-- Practice/Plus lifecycle
+- Respuestas soporte Wompi (correlación renovación + cancel individual)
+- Cutover productivo Mini Pack — decisión humana
+- Practice/Plus E2E sandbox tras docs
 - Rate limits más finos / CAPTCHA
 - Branding
 - R2

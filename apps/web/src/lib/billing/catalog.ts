@@ -25,8 +25,9 @@ export const BILLING_PRODUCTS = {
     planCode: "practice",
     periodDays: 30,
     /**
-     * Feature-flagged until recurrent subscriber lifecycle
-     * (renewal/cancel events) is confirmed in Wompi docs.
+     * SUBSCRIPTIONS PARTIALLY READY — shared EnlacePagoRecurrente APIs exist;
+     * checkout stays off until webhook↔subscriber correlation + individual
+     * cancel are confirmed by Wompi (see WOMPI_INTEGRATION.md).
      */
     checkoutEnabledByDefault: false,
   },
@@ -39,6 +40,9 @@ export const BILLING_PRODUCTS = {
     credits: 50,
     planCode: "plus",
     periodDays: 30,
+    /**
+     * Same HARD BLOCK as Practice — do not enable without docs confirmation.
+     */
     checkoutEnabledByDefault: false,
   },
 } as const;

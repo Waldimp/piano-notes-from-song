@@ -119,3 +119,10 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Decisión:** Declarar Mini Pack **production-ready** (legales, kill switch, checklist cutover, tests) **sin** activar cobros reales: `WOMPI_EXPECT_PRODUCTIVE=false`, negocio Wompi en desarrollo, sin flip a productivo ni compra real hasta decisión explícita posterior.
 **Motivo:** Separar preparación técnica del go-live financiero reduce riesgo de cargo accidental; sandbox debe seguir usable.
 **Estado:** Vigente. Checklist de activación futura en [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md).
+
+## DEC-016
+
+**Fecha:** 2026-09-21
+**Decisión:** Declarar Practice/Plus **SUBSCRIPTIONS PARTIALLY READY**: reutilizar `billing_subscriptions`, añadir period grants idempotentes (0013), adapters OpenAPI confirmados (`EnlacePagoRecurrente`, `.../suscripciones`), y **HARD BLOCK** de afiliación/grant/cancel individual hasta que Wompi documente correlación webhook↔suscriptor y cancel por afiliado. No fingir E2E ni cancel solo en DB.
+**Motivo:** OpenAPI confirma listado de suscriptores y disable del enlace compartido, pero no payload de renovación ni cancel individual; otorgar créditos o cancelar localmente sería inseguro.
+**Estado:** Vigente. Preguntas a soporte listadas en [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md). `BILLING_SUBSCRIPTIONS_ENABLED=false`.

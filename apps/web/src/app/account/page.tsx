@@ -10,7 +10,10 @@ import { supabase } from "@/lib/supabase";
 type SubRow = {
   product_code: string;
   status: string;
+  current_period_starts_at?: string | null;
   current_period_ends_at: string | null;
+  next_billing_at?: string | null;
+  cancel_at_period_end?: boolean;
 };
 
 export default function AccountPage() {
@@ -100,10 +103,22 @@ export default function AccountPage() {
             <li>Status: {activeSub.status}</li>
             <li>Product: {activeSub.product_code}</li>
             <li>
-              Renewal / period end:{" "}
+              Current period:{" "}
+              {activeSub.current_period_starts_at
+                ? new Date(activeSub.current_period_starts_at).toLocaleDateString()
+                : "—"}{" "}
+              →{" "}
               {activeSub.current_period_ends_at
-                ? new Date(activeSub.current_period_ends_at).toLocaleString()
+                ? new Date(activeSub.current_period_ends_at).toLocaleDateString()
                 : "—"}
+            </li>
+            <li>
+              Next billing:{" "}
+              {activeSub.next_billing_at
+                ? new Date(activeSub.next_billing_at).toLocaleDateString()
+                : activeSub.current_period_ends_at
+                  ? new Date(activeSub.current_period_ends_at).toLocaleDateString()
+                  : "—"}
             </li>
           </ul>
         ) : (
@@ -113,9 +128,12 @@ export default function AccountPage() {
               : "Payments setup in progress."}
           </p>
         )}
+        <button className="btn" type="button" disabled title="Individual cancel not documented by Wompi">
+          Manage / Cancel
+        </button>
         <p className="subtitle">
-          Cancel / manage: not available until Wompi recurrent subscriber lifecycle
-          is confirmed.
+          Cancel stays disabled: Wompi only documents deactivating the shared
+          recurring link (all subscribers), not an individual affiliation.
         </p>
       </section>
     </main>

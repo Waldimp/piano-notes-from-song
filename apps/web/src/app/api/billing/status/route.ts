@@ -23,7 +23,9 @@ export async function GET(request: Request) {
       .limit(20),
     sb
       .from("billing_subscriptions")
-      .select("id, product_code, status, current_period_ends_at, created_at")
+      .select(
+        "id, product_code, status, current_period_starts_at, current_period_ends_at, next_billing_at, cancel_at_period_end, created_at"
+      )
       .order("created_at", { ascending: false })
       .limit(10),
     sb.rpc("get_my_usage"),
@@ -39,11 +41,19 @@ export async function GET(request: Request) {
       billing_type: p.billingType,
       price_usd: p.priceUsd,
       credits: p.credits,
+      period_days: p.periodDays,
       checkout_available:
         p.billingType === "one_time"
           ? billingEnabled()
-          : billingSubscriptionsEnabled(),
+          : false /* Practice/Plus blocked until Wompi lifecycle confirmed */,
+      subscriptions_partially_ready: p.billingType === "subscription",
     })),
+    subscription_lifecycle: {
+      enabled_flag: billingSubscriptionsEnabled(),
+      credit_grant_supported: false,
+      individual_cancel_supported: false,
+      status: "partially_ready",
+    },
     usage,
     purchases: purchases ?? [],
     subscriptions: subscriptions ?? [],

@@ -199,8 +199,9 @@ export type CreateEnlacePagoRecurrenteResult = {
 
 /**
  * POST /EnlacePagoRecurrente — creates a shared recurring link product.
- * Per-subscriber renewal/cancel event handling is NOT implemented
- * (blocked pending official lifecycle docs).
+ *
+ * Confirmed (docs + OpenAPI): shared plan link with urlEnlace for manual affiliation.
+ * NOT implemented here: per-subscriber credit grants (correlation undocumented).
  */
 export async function createEnlacePagoRecurrente(
   cfg: WompiEnvConfig,
@@ -242,6 +243,103 @@ export async function createEnlacePagoRecurrente(
     estaProductivo: Boolean(json.estaProductivo),
     urlQrCodeEnlace: json.urlQrCodeEnlace,
   };
+}
+
+/** GET /EnlacePagoRecurrente/{id} — shared recurring link metadata. */
+export async function getEnlacePagoRecurrente(
+  cfg: WompiEnvConfig,
+  idEnlace: string
+): Promise<Record<string, unknown>> {
+  const token = await fetchWompiAccessToken(cfg);
+  const res = await fetch(
+    `${cfg.apiBaseUrl}/EnlacePagoRecurrente/${encodeURIComponent(idEnlace)}`,
+    {
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  if (!res.ok) {
+    throw new Error(`wompi EnlacePagoRecurrente GET failed: ${res.status}`);
+  }
+  return (await res.json()) as Record<string, unknown>;
+}
+
+export type WompiSuscripcionRecurrente = {
+  id?: string;
+  fechaCreacion?: string;
+  alias?: string;
+  monto?: number;
+  pagosRealizados?: number;
+  /** Undocumented enum 0–4 in OpenAPI — do not invent labels. */
+  estado?: number;
+  idSuscriptor?: string;
+  nombreSuscriptor?: string;
+  fechaInicio?: string;
+  diaPago?: number;
+};
+
+/**
+ * GET /EnlacePagoRecurrente/{id}/suscripciones
+ * Lists individual affiliations on a shared recurring link (OpenAPI confirmed).
+ */
+export async function listEnlacePagoRecurrenteSuscripciones(
+  cfg: WompiEnvConfig,
+  idEnlace: string,
+  query?: { idSuscriptor?: string; paginaActual?: number; suscripcionesPorPagina?: number }
+): Promise<WompiSuscripcionRecurrente[]> {
+  const token = await fetchWompiAccessToken(cfg);
+  const qs = new URLSearchParams();
+  if (query?.idSuscriptor) qs.set("IdSuscriptor", query.idSuscriptor);
+  if (query?.paginaActual != null) qs.set("PaginaActual", String(query.paginaActual));
+  if (query?.suscripcionesPorPagina != null) {
+    qs.set("SuscripcionesPorPagina", String(query.suscripcionesPorPagina));
+  }
+  const suffix = qs.toString() ? `?${qs}` : "";
+  const res = await fetch(
+    `${cfg.apiBaseUrl}/EnlacePagoRecurrente/${encodeURIComponent(idEnlace)}/suscripciones${suffix}`,
+    {
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  if (!res.ok) {
+    throw new Error(`wompi EnlacePagoRecurrente suscripciones failed: ${res.status}`);
+  }
+  const json = (await res.json()) as
+    | WompiSuscripcionRecurrente[]
+    | { resultado?: WompiSuscripcionRecurrente[] };
+  if (Array.isArray(json)) return json;
+  return json.resultado ?? [];
+}
+
+/**
+ * POST /EnlacePagoRecurrente/{id} — disables the ENTIRE shared recurring link.
+ * OpenAPI: "Desactiva un enlace de pago recurrente".
+ * MUST NOT be used as per-user cancel (would affect all affiliates).
+ */
+export async function disableEnlacePagoRecurrente(
+  cfg: WompiEnvConfig,
+  idEnlace: string
+): Promise<Record<string, unknown>> {
+  const token = await fetchWompiAccessToken(cfg);
+  const res = await fetch(
+    `${cfg.apiBaseUrl}/EnlacePagoRecurrente/${encodeURIComponent(idEnlace)}`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  if (!res.ok) {
+    throw new Error(`wompi EnlacePagoRecurrente disable failed: ${res.status}`);
+  }
+  return (await res.json()) as Record<string, unknown>;
 }
 
 export type WompiTransaction = {

@@ -1,7 +1,7 @@
 # Wompi Integration (Pianissimo)
 
-Fecha: 2026-09-21  
-Estado: **preparación lista** — Mini Pack checkout + webhook fail-closed.  
+Fecha: 2026-09-21
+Estado: **preparación lista** — Mini Pack checkout + webhook fail-closed.
 Sin cobros **reales** hasta cutover explícito (`WOMPI_EXPECT_PRODUCTIVE=true` + negocio productivo en panel). Sandbox Mini Pack operativo con `BILLING_ENABLED=true` + `WOMPI_EXPECT_PRODUCTIVE=false`.
 
 Documentación oficial usada:
@@ -28,23 +28,24 @@ Frontend (product_code only)
   → settle_billing_purchase → account_entitlements + user_credit_ledger (purchase_grant)
 ```
 
-**Fuente de verdad de créditos/plan:** Postgres (`account_entitlements`, `user_credit_ledger`).  
+**Fuente de verdad de créditos/plan:** Postgres (`account_entitlements`, `user_credit_ledger`).
 Wompi es solo payment processor. Nunca: frontend → “pagué” → créditos.
 
 Redirect `/billing/return` **no** otorga créditos.
 
-## Tablas (migration `0012_wompi_billing.sql`)
+## Tablas (migrations `0012` + `0013`)
 
 | Tabla | Rol |
 |---|---|
 | `billing_products` | Catálogo precio/créditos/tipo |
 | `billing_purchases` | Checkout interno + estados pending/paid/failed/refunded/cancelled |
 | `billing_events` | Webhooks crudos + idempotencia `(provider, external_event_key)` |
-| `billing_subscriptions` | Preparado; lifecycle recurrente **bloqueado** |
+| `billing_subscriptions` | Practice/Plus (0013: external_subscription_id, period fields) |
+| `billing_subscription_period_grants` | Idempotencia grant por periodo (0013) |
 
-Reutilizado sin rediseño: `plan_limits`, `account_entitlements`, `user_credit_ledger` (+ reason `purchase_grant`).
+Reutilizado sin rediseño: `plan_limits`, `account_entitlements`, `user_credit_ledger` (+ reasons `purchase_grant`, `subscription_grant`).
 
-RLS: usuario puede **leer** productos y sus purchases/subscriptions; **no** puede escribir status/provider ids.
+RLS: usuario puede **leer** productos y sus purchases/subscriptions/grants; **no** puede escribir status/provider ids.
 
 ## Product mapping
 
@@ -89,24 +90,79 @@ Si un Mini Pack se reembolsa después de `purchase_grant`:
 2. Si `credit_balance >= credits_granted` → debitar y ledger `admin_adjust` negativo.
 3. Si créditos ya consumidos → **no** inventar balance negativo automático; registrar deuda/`metadata.refund_owed` y revisión manual.
 
-## Recurrentes (Practice / Plus) — bloqueado
+## WOMPI SUBSCRIPTIONS (Practice / Plus) — PARTIALLY READY
 
-Documentado en Wompi:
+Estado: **SUBSCRIPTIONS PARTIALLY READY** (2026-09-21).
+Sin cobros recurrentes reales. `BILLING_SUBSCRIPTIONS_ENABLED` default **false**.
+`WOMPI_EXPECT_PRODUCTIVE=false`. Mini Pack one-time **no** se toca.
 
-- `POST /EnlacePagoRecurrente` crea un **enlace de suscripción compartible**.
-- Existen GET lista de suscritos, desactivar/editar enlace.
+### Endpoints confirmados (docs.wompi.sv + OpenAPI `https://api.wompi.sv/swagger/v1/swagger.json`)
 
-**No confirmado de forma segura en docs usadas:**
+| Endpoint | Confirmado | Notas |
+|---|---|---|
+| `POST /EnlacePagoRecurrente` | Sí | Crea **enlace compartido** por plan (`diaDePago`, `nombre`, `idAplicativo`, `monto`, `descripcionProducto`) → `idEnlace` + `urlEnlace` |
+| `GET /EnlacePagoRecurrente` | Sí | Lista enlaces de la cuenta |
+| `GET /EnlacePagoRecurrente/{id}` | Sí | Metadata del enlace compartido |
+| `PUT /EnlacePagoRecurrente/{id}` | Sí | Editar enlace compartido |
+| `POST /EnlacePagoRecurrente/{id}` | Sí | **Desactiva el enlace completo** (todos los afiliados futuros) — **no** es cancel individual |
+| `GET /EnlacePagoRecurrente/{id}/suscripciones` | Sí | Lista afiliados: `id`, `idSuscriptor`, `nombreSuscriptor`, `estado` (enum int 0–4 **sin labels**), `monto`, `diaPago`, `pagosRealizados`, `fechaInicio` |
+| Webhook con `IdSuscripcion` / correlación renovación | **No** | Definición oficial solo muestra `EnlacePago` one-time (`IdentificadorEnlaceComercio`); no documenta payload recurrente |
+| Cancel API por suscriptor | **No** | No aparece en docs ni OpenAPI |
+| Fallo/reintento recurrente notificado | **No** | No documentado |
+| Simulación sandbox de renovación sin esperar `diaDePago` | **No** | No documentado |
 
-- evento webhook por renovación individual de un suscriptor;
-- evento por fallo de renovación individual;
-- cancelación de un suscriptor desde nuestra app con efecto en créditos/periodo.
+### Plan mapping (server catalog)
 
-Por eso:
+| product_code | price | credits/period | Wompi link |
+|---|---|---|---|
+| `practice` | $5.99 | +20 | Shared `EnlacePagoRecurrente` (cuando se cree) |
+| `plus` | $8.99 | +50 | Shared `EnlacePagoRecurrente` (cuando se cree) |
 
-- UI Practice/Plus = “Payments setup in progress”.
-- `BILLING_SUBSCRIPTIONS_ENABLED` default false.
-- Adapter `createEnlacePagoRecurrente` existe; **no** hay grant automático de renovación.
+### Modelo interno
+
+- `billing_subscriptions` (0012 + 0013): `provider`, `user_id`, `product_code`, `status`, `external_enlace_id` (link compartido), `external_subscription_id`, `current_period_starts_at` / `current_period_ends_at`, `last_payment_transaction_id`, `next_billing_at`, `cancel_at_period_end`
+- `billing_subscription_period_grants` + RPC `grant_subscription_period_credits` — idempotencia `(subscription_id, period_key)` y `(provider, external_transaction_id)`
+- Separación: payment tx ≠ subscription ≠ entitlement ≠ credit ledger
+- RLS: usuario solo `SELECT` propio; sin mutate status/IDs
+
+### Lifecycle (deseado vs implementado)
+
+| Paso | Estado |
+|---|---|
+| Afiliación URL | Adapter listo; **API/UI HARD BLOCK** (`subscriptions_partially_ready`) — no generar cobros hasta correlación |
+| Primer cobro → +créditos | RPC lista; **no** cableada a webhook |
+| Renovación idempotente | Clave periodo + tx; **no** E2E |
+| Pago fallido → `past_due` | **No** (docs insuficientes) |
+| Cancel individual | **HARD BLOCK** `individual_cancel_unsupported` — no fingir cancel en DB mientras Wompi seguiría cobrando |
+| Cambio de plan | Bloqueado (cancel+resubscribe cuando exista cancel) |
+
+### Idempotencia (cuando se desbloquee)
+
+`grant_subscription_period_credits(subscription_id, period_key, external_transaction_id)` → `granted` \| `already_granted` (0 créditos extra). Ledger reason `subscription_grant`.
+
+### Sandbox evidence
+
+- Mini Pack E2E: passed (ver sección anterior).
+- Practice/Plus E2E recurrente: **no ejecutado** (HARD STOP docs). Sin afiliaciones sandbox ni cobros simulados fingidos.
+
+### Preguntas exactas para soporte Wompi
+
+1. ¿El webhook de un cobro de `EnlacePagoRecurrente` incluye el `id` de la suscripción individual y/o `idSuscriptor`? ¿Cuál es el JSON exacto?
+2. ¿`ModuloUtilizado` u otro campo distingue BotonPago vs cargo recurrente?
+3. ¿Las renovaciones mensuales disparan el mismo webhook que el primer cobro? ¿Con qué `IdTransaccion` nuevo?
+4. ¿Cómo se notifica un cobro recurrente fallido y los reintentos (webhook, API, ambos)? ¿Cuántos reintentos y con qué frecuencia?
+5. ¿Existe endpoint para **cancelar una suscripción individual** sin desactivar el `EnlacePagoRecurrente` compartido? ¿Path y método?
+6. ¿Qué significan los valores `EstadoSuscripcion` 0–4?
+7. ¿Hay forma oficial en sandbox de simular una renovación sin esperar `diaDePago`?
+8. Al afiliarse a un enlace compartido, ¿podemos pasar un identificador de comercio / metadata que vuelva en el webhook (equivalente a `IdentificadorEnlaceComercio`)?
+
+### Feature flags
+
+| Flag | Valor prep |
+|---|---|
+| `BILLING_ENABLED` | `true` (Mini Pack sandbox) |
+| `BILLING_SUBSCRIPTIONS_ENABLED` | `false` (default; even si `true`, API sigue HARD BLOCK por docs) |
+| `WOMPI_EXPECT_PRODUCTIVE` | `false` |
 
 ## Auth / env (nombres oficiales)
 
@@ -119,10 +175,11 @@ Por eso:
 | `WOMPI_TOKEN_URL` | `https://id.wompi.sv/connect/token` |
 | `WOMPI_API_BASE_URL` | `https://api.wompi.sv` |
 | `WOMPI_EXPECT_PRODUCTIVE` | `false` sandbox / `true` prod |
-| `BILLING_ENABLED` | feature flag checkout |
+| `BILLING_ENABLED` | feature flag checkout Mini Pack |
+| `BILLING_SUBSCRIPTIONS_ENABLED` | feature flag Practice/Plus (default false; grant still blocked) |
 | `NEXT_PUBLIC_APP_URL` | base para redirect/webhook |
 
-Ver `.env.example`.
+Ver `.env.example` si existe; si no, esta tabla es la fuente.
 
 ## Dónde configurar (sandbox E2E)
 
@@ -136,7 +193,8 @@ Variables **server-only** (Production + Preview; nunca `NEXT_PUBLIC_*` excepto l
 | `WOMPI_CLIENT_SECRET` | idem | API Secret — **Secret**, no loggear |
 | `WOMPI_APLICATIVO_ID` | idem | Id negocio |
 | `WOMPI_EXPECT_PRODUCTIVE` | idem | `false` mientras el aplicativo esté en desarrollo |
-| `BILLING_ENABLED` | idem | `true` solo mientras se valide sandbox |
+| `BILLING_ENABLED` | idem | `true` sandbox Mini Pack |
+| `BILLING_SUBSCRIPTIONS_ENABLED` | idem | dejar `false` hasta desbloqueo docs |
 | `NEXT_PUBLIC_APP_URL` | idem | `https://piano-notes-from-song.vercel.app` |
 
 Defaults fijos (opcionales): `WOMPI_AUDIENCE=wompi_api`, `WOMPI_TOKEN_URL=https://id.wompi.sv/connect/token`, `WOMPI_API_BASE_URL=https://api.wompi.sv`.
@@ -162,11 +220,11 @@ Helper: `python scripts/production-canary/e2e_wompi_mini_pack.py --check-config`
 | duplicate settle | `already_settled`, balance sigue 8, 1× `purchase_grant` |
 | redirect | `/billing/return` no otorga créditos por sí solo |
 
-Credenciales: `WOMPI_CLIENT_ID` + `WOMPI_CLIENT_SECRET` en Vercel Production.  
-`WOMPI_APLICATIVO_ID` **opcional** (defaults a App ID; docs: clientIdApi ≈ idAplicativo).  
+Credenciales: `WOMPI_CLIENT_ID` + `WOMPI_CLIENT_SECRET` en Vercel Production.
+`WOMPI_APLICATIVO_ID` **opcional** (defaults a App ID; docs: clientIdApi ≈ idAplicativo).
 `BILLING_ENABLED=true`, `WOMPI_EXPECT_PRODUCTIVE=false`, `NEXT_PUBLIC_APP_URL=https://piano-notes-from-song.vercel.app`.
 
-Practice/Plus siguen deshabilitados. Cutover a productivo: ver sección abajo — **no hecho**.
+Practice/Plus: **SUBSCRIPTIONS PARTIALLY READY** — sin E2E recurrente.
 
 Helper: `python scripts/production-canary/e2e_wompi_mini_pack.py --check-config`
 
@@ -176,11 +234,13 @@ Helper: `python scripts/production-canary/e2e_wompi_mini_pack.py --check-config`
 - [x] App ID / API Secret en Vercel
 - [x] Env + `WOMPI_EXPECT_PRODUCTIVE=false`, `BILLING_ENABLED=true`
 - [x] Migration `0012` aplicada
+- [x] Migration `0013` (subscriptions schema) aplicada en Supabase
 - [x] Webhook URL usada en EnlacePago
 - [x] Mini Pack de prueba exitoso (+5 una vez)
 - [x] Duplicate settle no duplica créditos
 - [x] Redirect no cambia balance por sí solo
 - [x] Decidir dejar `BILLING_ENABLED=true` + `WOMPI_EXPECT_PRODUCTIVE=false` (sandbox usable; sin cobro real)
+- [ ] Practice/Plus E2E — **bloqueado** hasta respuestas soporte Wompi
 
 ## Páginas legales (prep go-live)
 
@@ -279,10 +339,12 @@ Fuente: [docs.wompi.sv](https://docs.wompi.sv/), Datos Aplicativo, Enlace de Pag
 
 | Método | Path | Notas |
 |---|---|---|
-| POST | `/api/billing/checkout` | Auth; `product_code` |
-| POST | `/api/billing/wompi/webhook` | Raw body + `wompi_hash` |
-| GET | `/api/billing/status` | Own catalog/usage/purchases |
-| UI | `/pricing`, `/billing/return`, `/account`, `/terms`, `/privacy`, `/refund` | Return **no** afirma éxito |
+| POST | `/api/billing/checkout` | Auth; Mini Pack EnlacePago |
+| POST | `/api/billing/subscription` | Auth; Practice/Plus — HARD BLOCK parcialmente ready |
+| DELETE | `/api/billing/subscription` | Cancel individual — HARD BLOCK |
+| POST | `/api/billing/wompi/webhook` | Raw body + `wompi_hash`; Mini Pack settle; recurrent blocked |
+| GET | `/api/billing/status` | Own catalog/usage/purchases/subs |
+| UI | `/pricing`, `/billing/return`, `/account`, `/terms`, `/privacy`, `/refund` | Practice/Plus disabled |
 
 ## Qué sacar del panel Wompi
 
