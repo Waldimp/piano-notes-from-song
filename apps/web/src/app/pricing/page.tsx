@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import AppFooter from "@/components/AppFooter";
+import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/components/AuthGate";
 import { BILLING_PRODUCTS } from "@/lib/billing/catalog";
+import { mapBillingCheckoutError } from "@/lib/userMessages";
 import { supabase } from "@/lib/supabase";
 
 type Msg = { kind: "info" | "error"; text: string };
@@ -13,6 +16,25 @@ export default function PricingPage() {
   const { email } = useAuth();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<Msg | null>(null);
+  const [sandboxMode, setSandboxMode] = useState(false);
+  const [billingEnabled, setBillingEnabled] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const { data } = await supabase().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+      const res = await fetch("/api/billing/status", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setBillingEnabled(Boolean(body.billing_enabled));
+        setSandboxMode(body.billing_enabled && !body.wompi_expect_productive);
+      }
+    })();
+  }, []);
 
   const startCheckout = async (productCode: string) => {
     setMsg(null);
@@ -21,7 +43,7 @@ export default function PricingPage() {
       const { data } = await supabase().auth.getSession();
       const token = data.session?.access_token;
       if (!token) {
-        setMsg({ kind: "error", text: "Sign in to continue." });
+        setMsg({ kind: "error", text: "Inicia sesión para continuar." });
         return;
       }
       const res = await fetch("/api/billing/checkout", {
@@ -36,7 +58,7 @@ export default function PricingPage() {
       if (!res.ok) {
         setMsg({
           kind: "error",
-          text: body.error ?? body.code ?? "Checkout unavailable",
+          text: mapBillingCheckoutError(body),
         });
         return;
       }
@@ -44,111 +66,107 @@ export default function PricingPage() {
         window.location.href = body.url_enlace as string;
         return;
       }
-      setMsg({ kind: "error", text: "No payment URL returned" });
+      setMsg({ kind: "error", text: "No recibimos enlace de pago. Inténtalo de nuevo." });
     } finally {
       setBusy(null);
     }
   };
 
-  const free = {
-    name: "Free",
-    price: "$0",
-    credits: "3 credits",
-    note: "60s max per upload",
-  };
   const mini = BILLING_PRODUCTS.mini_pack;
   const practice = BILLING_PRODUCTS.practice;
   const plus = BILLING_PRODUCTS.plus;
 
   return (
     <main className="home">
-      <div className="topbar">
-        <div>
-          <h1>Pricing</h1>
-          <p className="subtitle" style={{ margin: 0 }}>
-            {email ? `Signed in as ${email}` : "Sign in to buy credits"}
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <Link className="btn small" href="/account">
-            Account
-          </Link>
-          <Link className="btn small" href="/">
-            Back
-          </Link>
-        </div>
-      </div>
+      <AppHeader
+        title="Precios"
+        subtitle={email ? `Sesión: ${email}` : "Inicia sesión para comprar tutoriales"}
+      />
 
       {msg && (
-        <div className="notice" style={{ marginTop: "1rem" }}>
+        <div className={`notice${msg.kind === "info" ? " info" : ""}`} role="alert">
           {msg.text}
         </div>
       )}
 
-      <section style={{ marginTop: "1.5rem", display: "grid", gap: "1.25rem" }}>
-        <article>
-          <h2>{free.name}</h2>
-          <p>
-            {free.price} — {free.credits}. {free.note}.
-          </p>
+      {sandboxMode && (
+        <p className="notice info" role="status">
+          Mini Pack usa el entorno de prueba de pagos (sandbox). No se realizarán cobros reales.
+        </p>
+      )}
+
+      <div className="pricing-grid">
+        <article className="pricing-card">
+          <p className="pricing-badge">Gratis</p>
+          <h2>FREE</h2>
+          <p className="pricing-price">$0</p>
+          <ul>
+            <li>3 tutoriales gratuitos</li>
+            <li>Hasta 60 s por canción</li>
+          </ul>
+          <Link className="btn" href={email ? "/" : "/login"}>
+            {email ? "Subir canción" : "Probar gratis"}
+          </Link>
         </article>
 
-        <article>
-          <h2>{mini.displayName}</h2>
-          <p>
-            ${mini.priceUsd.toFixed(2)} one-time — +{mini.credits} credits.
-          </p>
+        <article className="pricing-card pricing-card-highlight">
+          <p className="pricing-badge">Pago único</p>
+          <h2>Mini Pack</h2>
+          <p className="pricing-price">${mini.priceUsd.toFixed(2)}</p>
+          <ul>
+            <li>5 tutoriales</li>
+            <li>Hasta 10 min por canción</li>
+            <li>One-time purchase</li>
+          </ul>
           <button
-            className="btn"
+            className="btn active"
             type="button"
-            disabled={busy !== null}
+            disabled={busy !== null || !billingEnabled}
             onClick={() => void startCheckout("mini_pack")}
           >
-            {busy === "mini_pack" ? "Starting…" : "Buy Mini Pack"}
+            {busy === "mini_pack" ? "Abriendo pago…" : "Comprar Mini Pack"}
           </button>
+          {!billingEnabled && (
+            <p className="subtitle">Pagos no disponibles en este entorno.</p>
+          )}
         </article>
 
-        <article>
-          <h2>{practice.displayName}</h2>
-          <p>
-            ${practice.priceUsd.toFixed(2)} / month — {practice.credits} tutorials /
-            period
+        <article className="pricing-card">
+          <p className="pricing-badge">Mensual</p>
+          <h2>Practice</h2>
+          <p className="pricing-price">
+            ${practice.priceUsd.toFixed(2)}
+            <span className="pricing-period"> / mes</span>
           </p>
-          <button
-            className="btn"
-            type="button"
-            disabled
-            title="Wompi subscription lifecycle partially ready — affiliation blocked until docs confirm correlation"
-          >
-            Subscribe Practice
+          <ul>
+            <li>20 tutoriales / mes</li>
+            <li>Hasta 10 min por canción</li>
+          </ul>
+          <button className="btn" type="button" disabled aria-disabled="true">
+            Coming soon
           </button>
-          <p className="subtitle">Coming soon (subscriptions partially ready)</p>
+          <p className="subtitle">Suscripción mensual — disponible pronto.</p>
         </article>
 
-        <article>
-          <h2>{plus.displayName}</h2>
-          <p>
-            ${plus.priceUsd.toFixed(2)} / month — {plus.credits} tutorials / period
+        <article className="pricing-card">
+          <p className="pricing-badge">Mensual</p>
+          <h2>Plus</h2>
+          <p className="pricing-price">
+            ${plus.priceUsd.toFixed(2)}
+            <span className="pricing-period"> / mes</span>
           </p>
-          <button
-            className="btn"
-            type="button"
-            disabled
-            title="Wompi subscription lifecycle partially ready — affiliation blocked until docs confirm correlation"
-          >
-            Subscribe Plus
+          <ul>
+            <li>50 tutoriales / mes</li>
+            <li>Hasta 10 min por canción</li>
+          </ul>
+          <button className="btn" type="button" disabled aria-disabled="true">
+            Coming soon
           </button>
-          <p className="subtitle">Coming soon (subscriptions partially ready)</p>
+          <p className="subtitle">Suscripción mensual — disponible pronto.</p>
         </article>
-      </section>
+      </div>
 
-      <p className="subtitle" style={{ marginTop: "2rem" }}>
-        <Link href="/terms">Terms</Link>
-        {" · "}
-        <Link href="/privacy">Privacy</Link>
-        {" · "}
-        <Link href="/refund">Refunds</Link>
-      </p>
+      <AppFooter />
     </main>
   );
 }

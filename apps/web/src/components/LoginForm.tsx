@@ -1,15 +1,9 @@
 "use client";
 
-/**
- * Entrar / Registrarse / Olvidé mi contraseña.
- *
- * Registro y recuperación usan los enlaces por correo de Supabase (las
- * plantillas con código OTP no están disponibles en el plan Free). Al pulsar
- * el enlace, Supabase redirige a la app ya con sesión.
- */
-
 import { type FormEvent, useState } from "react";
+import Link from "next/link";
 
+import { SITE_NAME, SITE_TAGLINE } from "@/lib/site";
 import { supabase } from "@/lib/supabase";
 
 type Mode = "login" | "register" | "forgot";
@@ -60,17 +54,17 @@ export default function LoginForm() {
         const { error } = await sb.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: origin },
+          options: { emailRedirectTo: `${origin}/` },
         });
         if (error) throw error;
         setNotice(
-          "Te enviamos un correo de confirmación. Abre el enlace desde este dispositivo y entrarás directo. (Puede tardar unos minutos.)",
+          "Te enviamos un correo de confirmación. Abre el enlace desde este dispositivo para entrar.",
         );
       } else {
         const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: origin });
         if (error) throw error;
         setNotice(
-          "Si el correo existe, te enviamos un enlace para cambiar la contraseña. Ábrelo desde este dispositivo.",
+          "Si el correo existe, te enviamos un enlace para cambiar la contraseña.",
         );
       }
     } catch (err) {
@@ -81,15 +75,20 @@ export default function LoginForm() {
   };
 
   const title =
-    mode === "login" ? "Inicia sesión para ver tus canciones"
-    : mode === "register" ? "Crea tu cuenta"
-    : "Recuperar contraseña";
+    mode === "login"
+      ? "Inicia sesión"
+      : mode === "register"
+        ? "Crea tu cuenta"
+        : "Recuperar contraseña";
 
   return (
     <div className="login">
       <form onSubmit={submit}>
-        <h1>🎹 Piano Tutorial</h1>
-        <p className="subtitle">{title}</p>
+        <h1>{SITE_NAME}</h1>
+        <p className="subtitle">{SITE_TAGLINE}</p>
+        <p className="subtitle" style={{ marginTop: "-0.35rem" }}>
+          {title}
+        </p>
 
         <input
           className="input"
@@ -99,6 +98,7 @@ export default function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
+          aria-label="Correo electrónico"
         />
         {mode !== "forgot" && (
           <input
@@ -110,17 +110,29 @@ export default function LoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={mode === "register" ? MIN_PASSWORD : undefined}
+            aria-label="Contraseña"
           />
         )}
 
-        {error && <div className="notice">{error}</div>}
-        {notice && <div className="notice info">{notice}</div>}
+        {error && (
+          <div className="notice" role="alert">
+            {error}
+          </div>
+        )}
+        {notice && (
+          <div className="notice info" role="status">
+            {notice}
+          </div>
+        )}
 
         <button className="btn active" type="submit" disabled={busy}>
-          {busy ? "Un momento…"
-            : mode === "login" ? "Entrar"
-            : mode === "register" ? "Registrarme"
-            : "Enviar enlace"}
+          {busy
+            ? "Un momento…"
+            : mode === "login"
+              ? "Entrar"
+              : mode === "register"
+                ? "Registrarme"
+                : "Enviar enlace"}
         </button>
 
         <div className="auth-links">
@@ -142,7 +154,9 @@ export default function LoginForm() {
         </div>
 
         <p className="subtitle" style={{ fontSize: "0.8rem", marginTop: "0.5rem" }}>
-          La sesión se mantiene abierta en este dispositivo hasta que pulses Salir.
+          <Link href="/terms">Términos</Link>
+          {" · "}
+          <Link href="/privacy">Privacidad</Link>
         </p>
       </form>
     </div>

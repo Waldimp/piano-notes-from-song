@@ -134,16 +134,19 @@ describe("subscription API / SQL trust boundaries", () => {
 
   it("pricing UI keeps Practice/Plus buttons disabled", () => {
     const page = readWeb("src/app/pricing/page.tsx");
-    expect(page).toContain("Subscribe Practice");
-    expect(page).toContain("Subscribe Plus");
-    expect(page).toMatch(/disabled[\s\S]*Subscribe Practice/);
-    expect(page).toMatch(/disabled[\s\S]*Subscribe Plus/);
+    expect(page).toContain("Coming soon");
+    expect(page).toContain("Practice");
+    expect(page).toContain("Plus");
+    expect(page).toMatch(/disabled[\s\S]*Coming soon/);
+    expect(page).not.toContain('startCheckout("practice")');
+    expect(page).not.toContain('startCheckout("plus")');
   });
 
-  it("account cancel control stays disabled", () => {
+  it("account has no self-serve cancel until Wompi docs confirm", () => {
     const page = readWeb("src/app/account/page.tsx");
-    expect(page).toContain("Manage / Cancel");
-    expect(page).toMatch(/Manage \/ Cancel[\s\S]*disabled|disabled[\s\S]*Manage \/ Cancel/);
+    expect(page).not.toContain("Manage / Cancel");
+    expect(page).toContain("subscriptionsEnabled");
+    expect(page).toMatch(/próximamente|contáctanos/i);
   });
 
   it("migration 0013 adds period grants + grant RPC without authenticated writes", () => {

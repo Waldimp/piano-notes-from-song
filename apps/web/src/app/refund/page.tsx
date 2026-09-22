@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import AppFooter from "@/components/AppFooter";
+
 export const metadata = { title: "Refund Policy — Pianissimo" };
 
 export default function RefundPage() {
@@ -7,8 +9,8 @@ export default function RefundPage() {
     <main className="home" style={{ maxWidth: 720 }}>
       <div className="topbar">
         <h1>Refund Policy</h1>
-        <Link className="btn small" href="/">
-          Back
+        <Link className="btn small" href="/landing">
+          Inicio
         </Link>
       </div>
       <p className="subtitle">Last updated: 2026-09-21. Applies to Mini Pack.</p>
@@ -63,6 +65,7 @@ export default function RefundPage() {
         See also <Link href="/terms">Terms</Link> and{" "}
         <Link href="/privacy">Privacy</Link>.
       </p>
+      <AppFooter />
     </main>
   );
 }

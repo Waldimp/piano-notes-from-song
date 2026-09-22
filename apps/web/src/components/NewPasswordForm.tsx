@@ -4,6 +4,7 @@
 
 import { type FormEvent, useState } from "react";
 
+import { SITE_NAME } from "@/lib/site";
 import { supabase } from "@/lib/supabase";
 
 export default function NewPasswordForm({ onDone }: { onDone: () => void }) {
@@ -27,7 +28,7 @@ export default function NewPasswordForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="login">
       <form onSubmit={submit}>
-        <h1>🎹 Piano Tutorial</h1>
+        <h1>{SITE_NAME}</h1>
         <p className="subtitle">Elige tu nueva contraseña</p>
         <input
           className="input"

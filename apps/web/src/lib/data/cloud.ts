@@ -3,6 +3,7 @@
 import type { PianoTranscription } from "@piano/contracts";
 import { isPianoTranscription } from "@piano/contracts";
 
+import { mapCreateRequestError } from "../userMessages";
 import { supabase } from "../supabase";
 import type { DataSource, JobState, JobStatus, SongSummary } from "./types";
 
@@ -116,7 +117,12 @@ export const cloudDataSource: DataSource = {
       code?: string;
     };
     if (!response.ok || !payload.request_id) {
-      const msg = payload.message || payload.error || `No se pudo crear la solicitud (${response.status})`;
+      const msg = mapCreateRequestError({
+        code: payload.code,
+        message: payload.message,
+        error: payload.error,
+        status: response.status,
+      });
       throw new Error(msg);
     }
     return payload.request_id;

@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import AppFooter from "@/components/AppFooter";
+import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/components/AuthGate";
-import UsageBanner, { type UsageInfo } from "@/components/UsageBanner";
+import { type UsageInfo } from "@/components/UsageBanner";
 import { supabase } from "@/lib/supabase";
 
 type SubRow = {
@@ -16,11 +18,40 @@ type SubRow = {
   cancel_at_period_end?: boolean;
 };
 
+function planLabel(code: string): string {
+  switch (code) {
+    case "free":
+      return "Gratis (FREE)";
+    case "mini":
+      return "Mini Pack";
+    case "practice":
+      return "Practice";
+    case "plus":
+      return "Plus";
+    default:
+      return code;
+  }
+}
+
+function subStatusLabel(status: string): string {
+  switch (status) {
+    case "active":
+      return "Activa";
+    case "past_due":
+      return "Pago pendiente";
+    case "canceled":
+      return "Cancelada";
+    default:
+      return status;
+  }
+}
+
 export default function AccountPage() {
   const { email } = useAuth();
   const [usage, setUsage] = useState<UsageInfo | null>(null);
   const [subs, setSubs] = useState<SubRow[]>([]);
   const [billingEnabled, setBillingEnabled] = useState(false);
+  const [subscriptionsEnabled, setSubscriptionsEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,7 +71,7 @@ export default function AccountPage() {
       ]);
       const usageBody = await usageRes.json().catch(() => ({}));
       if (!usageRes.ok) {
-        setError(usageBody.error ?? "Failed to load usage");
+        setError(usageBody.error ?? "No pudimos cargar tu cuenta");
         return;
       }
       setUsage(usageBody.usage as UsageInfo);
@@ -48,6 +79,7 @@ export default function AccountPage() {
       const billingBody = await billingRes.json().catch(() => ({}));
       if (billingRes.ok) {
         setBillingEnabled(Boolean(billingBody.billing_enabled));
+        setSubscriptionsEnabled(Boolean(billingBody.subscriptions_enabled));
         setSubs((billingBody.subscriptions as SubRow[]) ?? []);
       }
     })();
@@ -55,55 +87,62 @@ export default function AccountPage() {
 
   const activeSub = subs.find((s) => s.status === "active" || s.status === "past_due");
 
+  const durationLabel =
+    usage != null
+      ? usage.max_duration_seconds <= 60
+        ? "1 minuto"
+        : `${Math.round(usage.max_duration_seconds / 60)} minutos`
+      : "—";
+
   return (
     <main className="home">
-      <div className="topbar">
-        <div>
-          <h1>Account</h1>
-          <p className="subtitle" style={{ margin: 0 }}>
-            Signed in as <strong>{email}</strong>
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <Link className="btn small" href="/pricing">
-            Pricing
-          </Link>
-          <Link className="btn small" href="/">
-            Back
-          </Link>
-        </div>
-      </div>
+      <AppHeader title="Cuenta" subtitle="Revisa tu plan, tutoriales y facturación." />
 
-      <UsageBanner />
+      <section className="account-identity" aria-labelledby="identity-title">
+        <h2 id="identity-title">Identidad</h2>
+        <p>
+          Correo de la sesión actual: <strong>{email ?? "—"}</strong>
+        </p>
+        <p className="subtitle">
+          Si ves otra cuenta de la esperada, cierra sesión e inicia con el correo correcto.
+        </p>
+      </section>
 
-      {error && <div className="notice">{error}</div>}
+      {error && (
+        <div className="notice" role="alert">
+          {error}
+        </div>
+      )}
 
       {usage && (
-        <section style={{ marginTop: "1rem" }}>
-          <h2>Usage</h2>
-          <ul>
-            <li>Plan: {usage.plan_code}</li>
-            <li>Credits available: {usage.credit_balance}</li>
-            <li>Tutorials completed (settled): {usage.credits_settled}</li>
-            <li>Max duration: {usage.max_duration_seconds}s</li>
+        <section className="account-section" aria-labelledby="usage-title">
+          <h2 id="usage-title">Plan y tutoriales</h2>
+          <ul className="account-list">
+            <li>Plan: {planLabel(usage.plan_code)}</li>
+            <li>Tutoriales disponibles: {usage.credit_balance}</li>
+            <li>Tutoriales usados: {usage.credits_settled}</li>
+            <li>Duración máxima por canción: {durationLabel}</li>
           </ul>
           {usage.credit_balance <= 0 && (
             <p>
-              You&apos;ve used your free tutorials.{" "}
-              <Link href="/pricing">View pricing</Link>
+              Sin tutoriales restantes. <Link href="/pricing">Ver precios</Link>
             </p>
           )}
         </section>
       )}
 
-      <section style={{ marginTop: "1.25rem" }}>
-        <h2>Subscription</h2>
+      <section className="account-section" aria-labelledby="billing-title">
+        <h2 id="billing-title">Facturación</h2>
+        <p className="subtitle">
+          Pagos puntuales: {billingEnabled ? "activos" : "no disponibles en este entorno"}.
+          Suscripciones mensuales: {subscriptionsEnabled ? "activas" : "próximamente"}.
+        </p>
         {activeSub ? (
-          <ul>
-            <li>Status: {activeSub.status}</li>
-            <li>Product: {activeSub.product_code}</li>
+          <ul className="account-list">
+            <li>Estado: {subStatusLabel(activeSub.status)}</li>
+            <li>Producto: {activeSub.product_code}</li>
             <li>
-              Current period:{" "}
+              Periodo actual:{" "}
               {activeSub.current_period_starts_at
                 ? new Date(activeSub.current_period_starts_at).toLocaleDateString()
                 : "—"}{" "}
@@ -112,30 +151,31 @@ export default function AccountPage() {
                 ? new Date(activeSub.current_period_ends_at).toLocaleDateString()
                 : "—"}
             </li>
-            <li>
-              Next billing:{" "}
-              {activeSub.next_billing_at
-                ? new Date(activeSub.next_billing_at).toLocaleDateString()
-                : activeSub.current_period_ends_at
-                  ? new Date(activeSub.current_period_ends_at).toLocaleDateString()
-                  : "—"}
-            </li>
           </ul>
         ) : (
-          <p className="subtitle">
-            {billingEnabled
-              ? "No active paid subscription."
-              : "Payments setup in progress."}
-          </p>
+          <p>No tienes suscripción mensual activa.</p>
         )}
-        <button className="btn" type="button" disabled title="Individual cancel not documented by Wompi">
-          Manage / Cancel
-        </button>
         <p className="subtitle">
-          Cancel stays disabled: Wompi only documents deactivating the shared
-          recurring link (all subscribers), not an individual affiliation.
+          Para cancelar o gestionar suscripciones cuando estén disponibles, contáctanos desde el
+          pie de página.
+        </p>
+        <Link className="btn small" href="/pricing">
+          Ver precios
+        </Link>
+      </section>
+
+      <section className="account-section" aria-labelledby="legal-title">
+        <h2 id="legal-title">Legal</h2>
+        <p>
+          <Link href="/terms">Términos</Link>
+          {" · "}
+          <Link href="/privacy">Privacidad</Link>
+          {" · "}
+          <Link href="/refund">Reembolsos</Link>
         </p>
       </section>
+
+      <AppFooter />
     </main>
   );
 }

@@ -3,15 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+import AppFooter from "@/components/AppFooter";
+import AppHeader from "@/components/AppHeader";
 import { supabase } from "@/lib/supabase";
 
 type UsageSnapshot = { credit_balance?: number; plan_code?: string };
 
-/**
- * Redirect landing after Wompi hosted checkout.
- * Does NOT grant credits — webhook + TransaccionCompra confirmation does.
- * Never claims payment success from redirect params alone.
- */
 export default function BillingReturnPage() {
   const [usage, setUsage] = useState<UsageSnapshot | null>(null);
 
@@ -31,30 +28,33 @@ export default function BillingReturnPage() {
 
   return (
     <main className="home">
-      <div className="topbar">
-        <div>
-          <h1>Confirming payment</h1>
-          <p className="subtitle" style={{ margin: 0 }}>
-            Redirect confirmation alone does not grant credits. We wait for the
-            Wompi webhook and a server-side transaction check. Refresh Account in
-            a minute if credits are not updated yet.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <Link className="btn small" href="/account">
-            Account
-          </Link>
-          <Link className="btn small" href="/pricing">
-            Pricing
-          </Link>
-        </div>
-      </div>
+      <AppHeader
+        title="Confirmando pago"
+        subtitle="Estamos verificando tu compra. Los tutoriales se acreditan en cuanto el pago se confirma."
+      />
+
+      <p className="subtitle">
+        Si no ves los tutoriales al instante, espera un minuto y revisa tu{" "}
+        <Link href="/account">cuenta</Link>. No hace falta pagar de nuevo.
+      </p>
+
       {usage && (
         <p style={{ marginTop: "1rem" }}>
-          Current credits on account: {usage.credit_balance ?? "—"} (plan{" "}
+          Tutoriales disponibles ahora: <strong>{usage.credit_balance ?? "—"}</strong> (plan{" "}
           {usage.plan_code ?? "—"})
         </p>
       )}
+
+      <div style={{ display: "flex", gap: "0.5rem", marginTop: "1.25rem", flexWrap: "wrap" }}>
+        <Link className="btn active" href="/">
+          Tus canciones
+        </Link>
+        <Link className="btn small" href="/account">
+          Cuenta
+        </Link>
+      </div>
+
+      <AppFooter />
     </main>
   );
 }

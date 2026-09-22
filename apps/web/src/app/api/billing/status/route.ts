@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { BILLING_PRODUCTS } from "@/lib/billing/catalog";
-import { billingEnabled, billingSubscriptionsEnabled } from "@/lib/billing/wompi";
+import { billingEnabled, billingSubscriptionsEnabled, loadWompiConfig } from "@/lib/billing/wompi";
 import { bearerToken, requireUser, userClient } from "@/lib/server/auth";
 
 export const dynamic = "force-dynamic";
@@ -31,10 +31,18 @@ export async function GET(request: Request) {
     sb.rpc("get_my_usage"),
   ]);
 
+  let wompiExpectProductive = false;
+  try {
+    if (billingEnabled()) wompiExpectProductive = loadWompiConfig().expectProductive;
+  } catch {
+    /* credentials missing */
+  }
+
   return NextResponse.json({
     ok: true,
     billing_enabled: billingEnabled(),
     subscriptions_enabled: billingSubscriptionsEnabled(),
+    wompi_expect_productive: wompiExpectProductive,
     catalog: Object.values(BILLING_PRODUCTS).map((p) => ({
       product_code: p.productCode,
       display_name: p.displayName,

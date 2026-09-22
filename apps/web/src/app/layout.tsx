@@ -3,11 +3,21 @@ import type { ReactNode } from "react";
 
 import "./globals.css";
 import AuthGate from "@/components/AuthGate";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_OG, SITE_TITLE } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Piano Tutorial",
-  description: "Tutorial de piano local-first con notas que caen",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Piano" },
+  title: {
+    default: SITE_TITLE,
+    template: `%s · ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: SITE_OG.title,
+    description: SITE_OG.description,
+    type: SITE_OG.type,
+    siteName: SITE_NAME,
+  },
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: SITE_NAME },
 };
 
 export const viewport: Viewport = {

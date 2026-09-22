@@ -15,9 +15,9 @@ export type UsageInfo = {
 function planLabel(code: string): string {
   switch (code) {
     case "free":
-      return "Free plan";
+      return "Gratis";
     case "mini":
-      return "Mini pack";
+      return "Mini Pack";
     case "practice":
       return "Practice";
     case "plus":
@@ -41,7 +41,7 @@ export default function UsageBanner({ refreshKey = 0 }: { refreshKey?: number })
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(body.error ?? "No se pudo cargar el uso");
+      setError(body.error ?? "No pudimos cargar tu plan");
       return;
     }
     setUsage(body.usage as UsageInfo);
@@ -52,29 +52,39 @@ export default function UsageBanner({ refreshKey = 0 }: { refreshKey?: number })
     void load();
   }, [load, refreshKey]);
 
-  if (error) return <p className="subtitle">{error}</p>;
+  if (error) {
+    return (
+      <div className="notice info" role="status">
+        {error}
+      </div>
+    );
+  }
   if (!usage) return null;
 
-  const maxCreditsHint =
-    usage.plan_code === "free" ? 3 : usage.credit_balance + usage.credits_settled;
+  const used = usage.credits_settled;
   const remaining = usage.credit_balance;
-  const durationMin = Math.round(usage.max_duration_seconds / 60);
+  const pool = Math.max(remaining + used, remaining, used);
+  const durationLabel =
+    usage.max_duration_seconds <= 60
+      ? "1 minuto"
+      : `${Math.round(usage.max_duration_seconds / 60)} minutos`;
 
   return (
-    <div className="usage-banner" style={{ marginBottom: "1rem" }}>
+    <div className="usage-banner" role="status">
       <p style={{ margin: 0 }}>
         <strong>{planLabel(usage.plan_code)}</strong>
-        {" — "}
-        {remaining} of {Math.max(maxCreditsHint, remaining)} credits remaining
         {" · "}
-        Max duration: {usage.max_duration_seconds <= 60 ? "1 minute" : `${durationMin} minutes`}
+        {remaining} tutorial{remaining === 1 ? "" : "es"} disponible
+        {remaining === 1 ? "" : "s"}
+        {pool > 0 ? ` (de ${pool})` : ""}
         {" · "}
-        <Link href="/account">Account</Link>
+        Máx. {durationLabel} por canción
+        {" · "}
+        <Link href="/account">Cuenta</Link>
       </p>
       {remaining <= 0 && (
         <p style={{ margin: "0.35rem 0 0" }}>
-          You&apos;ve used your free tutorials.{" "}
-          <Link href="/pricing">View pricing</Link>
+          Agotaste tus tutoriales. <Link href="/pricing">Ver precios</Link>
         </p>
       )}
     </div>

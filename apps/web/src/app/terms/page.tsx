@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import AppFooter from "@/components/AppFooter";
+
 export const metadata = { title: "Terms of Service — Pianissimo" };
 
 export default function TermsPage() {
@@ -7,8 +9,8 @@ export default function TermsPage() {
     <main className="home" style={{ maxWidth: 720 }}>
       <div className="topbar">
         <h1>Terms of Service</h1>
-        <Link className="btn small" href="/">
-          Back
+        <Link className="btn small" href="/landing">
+          Inicio
         </Link>
       </div>
       <p className="subtitle">Last updated: 2026-09-21. Product: Pianissimo.</p>
@@ -82,6 +84,7 @@ export default function TermsPage() {
         See also <Link href="/privacy">Privacy</Link> and{" "}
         <Link href="/refund">Refunds</Link>.
       </p>
+      <AppFooter />
     </main>
   );
 }

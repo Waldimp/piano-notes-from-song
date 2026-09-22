@@ -45,6 +45,23 @@ Beta cerrada. Mini Pack sandbox E2E passed. Practice/Plus parcialmente listos (s
 
 2026-09-21: **Subscription sync/reconcile** — Términos (auto-renew + retry 4h×2 días); OpenAPI snapshot fields; migration 0014; Δ pagosRealizados sin auto-grant. `BILLING_SUBSCRIPTIONS_ENABLED` sigue false.
 
+## BETA UX READINESS
+
+Actualizado: 2026-09-21 (beta cerrada / comercial temprana — sin tocar Modal, RLS, recurrente Wompi).
+
+| Área | Estado |
+| --- | --- |
+| Branding UI | **Pianissimo** (metadata EN, UI ES) |
+| Públicas | `/landing`, `/login`, `/terms`, `/privacy`, `/refund`, `/pricing` (auth) |
+| Home | **Tus canciones** — jobs + biblioteca unificados, empty state, onboarding dismissible |
+| Upload | Límites plan, validación, copy amigable (sin Modal/worker) |
+| Pricing | FREE / Mini Pack / Practice+Plus Coming soon; aviso sandbox si `!wompi_expect_productive` |
+| Account | Email visible, plan, créditos, facturación, legal |
+| Soporte | `NEXT_PUBLIC_SUPPORT_EMAIL` (opcional) en footer |
+| Analytics | Solo documentado — [`ANALYTICS_EVENTS.md`](ANALYTICS_EVENTS.md) |
+
+**Pendiente beta 5–10 usuarios:** email soporte en prod, invitaciones/onboarding humano opcional, QA móvil real, tutorial/player polish, cutover Mini Pack productivo (decisión aparte), respuesta Wompi recurrente.
+
 ## Siguiente tarea
 
 Enviar preguntas a soporte Wompi (lista en `WOMPI_INTEGRATION.md`). Tras respuestas: cablear correlación + cancel individual + E2E sandbox. Mini Pack cutover productivo sigue siendo decisión separada.

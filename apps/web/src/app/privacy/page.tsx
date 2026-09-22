@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import AppFooter from "@/components/AppFooter";
+
 export const metadata = { title: "Privacy Policy — Pianissimo" };
 
 export default function PrivacyPage() {
@@ -7,8 +9,8 @@ export default function PrivacyPage() {
     <main className="home" style={{ maxWidth: 720 }}>
       <div className="topbar">
         <h1>Privacy Policy</h1>
-        <Link className="btn small" href="/">
-          Back
+        <Link className="btn small" href="/landing">
+          Inicio
         </Link>
       </div>
       <p className="subtitle">Last updated: 2026-09-21. Product: Pianissimo.</p>
@@ -73,6 +75,7 @@ export default function PrivacyPage() {
         See also <Link href="/terms">Terms</Link> and{" "}
         <Link href="/refund">Refunds</Link>.
       </p>
+      <AppFooter />
     </main>
   );
 }

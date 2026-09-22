@@ -3,17 +3,13 @@
 /**
  * En modo nube exige sesion de Supabase antes de mostrar la app.
  * En modo local (tu PC) no hace nada: deja pasar.
- *
- * La sesion persiste en el navegador y se renueva sola; solo termina
- * al pulsar "Salir".
  */
 
 import { type ReactNode, createContext, useContext, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { isCloudMode, supabase } from "@/lib/supabase";
-import LoginForm from "./LoginForm";
 import NewPasswordForm from "./NewPasswordForm";
 
 interface AuthValue {
@@ -27,7 +23,7 @@ export function useAuth(): AuthValue {
   return useContext(AuthContext);
 }
 
-const PUBLIC_PATHS = ["/terms", "/privacy", "/refund"];
+const PUBLIC_PATHS = ["/terms", "/privacy", "/refund", "/landing", "/login"];
 
 function isPublicPath(pathname: string | null): boolean {
   if (!pathname) return false;
@@ -36,6 +32,7 @@ function isPublicPath(pathname: string | null): boolean {
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [recovering, setRecovering] = useState(false);
 
@@ -44,12 +41,24 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     const sb = supabase();
     sb.auth.getSession().then(({ data }) => setSession(data.session));
     const { data: sub } = sb.auth.onAuthStateChange((event, s) => {
-      // Llegada por enlace de "olvidé mi contraseña": pedir la nueva antes de entrar.
       if (event === "PASSWORD_RECOVERY") setRecovering(true);
       setSession(s);
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!isCloudMode || session === undefined) return;
+    if (session) return;
+    if (isPublicPath(pathname)) return;
+    if (pathname === "/") {
+      router.replace("/landing");
+      return;
+    }
+    if (pathname !== "/login") {
+      router.replace("/login");
+    }
+  }, [session, pathname, router]);
 
   if (!isCloudMode) return <>{children}</>;
 
@@ -61,7 +70,10 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     return <div className="message">Cargando…</div>;
   }
   if (!session) {
-    return <LoginForm />;
+    if (pathname === "/login") {
+      return <>{children}</>;
+    }
+    return <div className="message">Cargando…</div>;
   }
   if (recovering) {
     return <NewPasswordForm onDone={() => setRecovering(false)} />;
@@ -71,6 +83,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
     email: session.user.email ?? null,
     signOut: async () => {
       await supabase().auth.signOut();
+      router.replace("/landing");
     },
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
