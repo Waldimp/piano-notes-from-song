@@ -291,8 +291,36 @@ code {
   min-height: 0;
   position: relative;
 }
-.tutorial .stage canvas {
+.tutorial .stage canvas,
+.tutorial .stage-canvas {
   display: block;
+  width: 100%;
+  height: 100%;
+}
+.stage-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+  background: var(--bg);
+}
+.tutorial-error-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  justify-content: center;
+}
+.controls-primary {
+  flex-shrink: 0;
+}
+.controls-secondary {
+  flex-shrink: 0;
+  border-top: none;
+  padding-top: 0.2rem;
 }
 .controls {
   display: flex;
@@ -401,6 +429,11 @@ code {
   .song-actions .btn {
     flex: 1;
   }
+  .tutorial {
+    /* Evita scroll accidental sobre el canvas en iOS */
+    overscroll-behavior: none;
+    touch-action: manipulation;
+  }
   .controls {
     padding: 0.35rem 0.5rem;
     gap: 0.35rem 0.4rem;
@@ -408,6 +441,14 @@ code {
   .controls .btn {
     padding: 0.4rem 0.6rem;
     font-size: 0.85rem;
+    min-height: 40px;
+  }
+  .controls .seek {
+    flex: 1 1 100%;
+    order: 3;
+  }
+  .controls-secondary .group-label {
+    display: none;
   }
   .hint {
     display: none; /* no cabe: el espacio es para el teclado */

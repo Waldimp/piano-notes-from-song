@@ -4,8 +4,8 @@
  * Tutorial de notas que caen.
  *
  * Sincronización: el elemento <audio> es el reloj autoritativo. Cada frame
- * (requestAnimationFrame) lee audio.currentTime y pinta el canvas; no existe
- * ningún temporizador propio que pueda derivar.
+ * (requestAnimationFrame) lee audio.currentTime vía MediaClock y pinta el canvas.
+ * React sólo se actualiza para la UI (tiempo/controles), no a 60 fps.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -15,6 +15,14 @@ import type { PianoTranscription } from "@piano/contracts";
 import { MediaClock, loadSyncOffsetMs, saveSyncOffsetMs } from "@/lib/clock";
 import { getDataSource } from "@/lib/data";
 import { maxDuration } from "@/lib/falling";
+import {
+  PLAYBACK_SPEEDS,
+  SEEK_STEP_SECONDS,
+  coerceSeekIntoLoop,
+  loopWrapTarget,
+  nudgeTime,
+  resetPlaybackTime,
+} from "@/lib/playback";
 import { DEFAULT_VIEW_OPTIONS, type HandFilter, type ViewOptions, drawFrame } from "@/lib/renderer";
 
 const VIEW_KEY = "piano:viewOptions";
@@ -38,11 +46,9 @@ function saveViewOptions(v: ViewOptions): void {
   try {
     localStorage.setItem(VIEW_KEY, JSON.stringify(v));
   } catch {
-    // sin almacenamiento: vive solo en la sesión
+    /* sesión only */
   }
 }
-
-const SPEEDS = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5] as const;
 
 interface Marker {
   name: string;
@@ -55,7 +61,6 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-/** Marcadores por canción en localStorage (conveniencia local del navegador). */
 function loadMarkers(id: string): Marker[] {
   try {
     const raw = localStorage.getItem(`piano:markers:${id}`);
@@ -69,8 +74,34 @@ function saveMarkers(id: string, markers: Marker[]): void {
   try {
     localStorage.setItem(`piano:markers:${id}`, JSON.stringify(markers));
   } catch {
-    // sin almacenamiento disponible: los marcadores viven solo en la sesión
+    /* sesión only */
   }
+}
+
+function friendlyLoadError(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes("not found") || lower.includes("no encontrada")) {
+    return "No encontramos el tutorial de esta canción. Puede que aún se esté procesando o que falte un archivo.";
+  }
+  if (lower.includes("notes.json") || lower.includes("contrato")) {
+    return "Los datos del tutorial están incompletos o dañados. Prueba a volver a la biblioteca.";
+  }
+  if (lower.includes("audio") || lower.includes("signed")) {
+    return "No pudimos cargar el audio. Revisa tu conexión e inténtalo de nuevo.";
+  }
+  if (lower.includes("storage") || lower.includes("supabase") || lower.includes("rpc")) {
+    return "No pudimos cargar el tutorial. Inténtalo de nuevo en un momento.";
+  }
+  if (raw.length > 160 || lower.includes("stack")) {
+    return "No pudimos cargar el tutorial. Inténtalo de nuevo.";
+  }
+  return raw;
+}
+
+function isTypingTarget(el: EventTarget | null): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
 }
 
 export default function Tutorial({ id }: { id: string }) {
@@ -78,39 +109,56 @@ export default function Tutorial({ id }: { id: string }) {
   const [transcription, setTranscription] = useState<PianoTranscription | null>(null);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState<number>(1.0);
   const [displayTime, setDisplayTime] = useState(0);
   const [loopA, setLoopA] = useState<number | null>(null);
   const [loopB, setLoopB] = useState<number | null>(null);
+  const [loopArmed, setLoopArmed] = useState(false);
   const [handFilter, setHandFilter] = useState<HandFilter>("both");
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [rotateDismissed, setRotateDismissed] = useState(false);
   const [syncOffsetMs, setSyncOffsetMs] = useState(0);
   const [view, setView] = useState<ViewOptions>(DEFAULT_VIEW_OPTIONS);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);
+  const [loadKey, setLoadKey] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  // Refs espejo para que el bucle rAF no dependa de re-renders de React.
+  const rootRef = useRef<HTMLDivElement>(null);
   const loopRef = useRef<{ a: number | null; b: number | null }>({ a: null, b: null });
   const handFilterRef = useRef<HandFilter>("both");
   const maxDurRef = useRef(0);
-  // Reloj suavizado: el <audio> manda, pero se interpola entre sus lecturas.
   const clockRef = useRef(new MediaClock());
   const syncOffsetRef = useRef(0);
   const viewRef = useRef<ViewOptions>(DEFAULT_VIEW_OPTIONS);
+  const durationRef = useRef(0);
+  const lastUiUpdateRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setTranscription(null);
+    setAudioSrc(null);
+    setAudioReady(false);
     Promise.all([data.getTranscription(id), data.getAudioUrl(id)])
       .then(([t, url]) => {
         if (cancelled) return;
         maxDurRef.current = maxDuration(t.notes);
+        durationRef.current = t.duration;
         setTranscription(t);
         setAudioSrc(url);
+        setLoading(false);
       })
-      .catch((e: Error) => !cancelled && setError(e.message));
+      .catch((e: Error) => {
+        if (cancelled) return;
+        setError(friendlyLoadError(e.message));
+        setLoading(false);
+      });
     setMarkers(loadMarkers(id));
     const savedView = loadViewOptions();
     viewRef.current = savedView;
@@ -121,7 +169,7 @@ export default function Tutorial({ id }: { id: string }) {
     return () => {
       cancelled = true;
     };
-  }, [id, data]);
+  }, [id, data, loadKey]);
 
   useEffect(() => {
     loopRef.current = { a: loopA, b: loopB };
@@ -131,7 +179,13 @@ export default function Tutorial({ id }: { id: string }) {
     handFilterRef.current = handFilter;
   }, [handFilter]);
 
-  // Bucle de render: audio.currentTime -> canvas.
+  useEffect(() => {
+    const onFs = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+
+  // Bucle de render: audio.currentTime → canvas (sin setState a 60 fps).
   useEffect(() => {
     if (!transcription || !audioSrc) return;
     const canvas = canvasRef.current;
@@ -161,30 +215,28 @@ export default function Tutorial({ id }: { id: string }) {
     const observer = new ResizeObserver(resize);
     observer.observe(container);
 
-    // Cualquier salto o cambio de velocidad del audio re-ancla el reloj.
     const resetClock = () => clockRef.current.reset();
     for (const ev of ["seeked", "ratechange", "play", "pause"]) {
       audio.addEventListener(ev, resetClock);
     }
 
     const tick = () => {
+      const now = performance.now();
       const t = clockRef.current.update({
         mediaTime: audio.currentTime,
-        nowMs: performance.now(),
+        nowMs: now,
         playbackRate: audio.playbackRate,
         paused: audio.paused,
         seeking: audio.seeking,
       });
 
-      // Loop A/B: al llegar a B se vuelve a A.
       const { a, b } = loopRef.current;
-      if (a !== null && b !== null && t >= b) {
-        audio.currentTime = a;
+      const wrap = loopWrapTarget(t, a, b);
+      if (wrap !== null) {
+        audio.currentTime = wrap;
         clockRef.current.reset();
       }
 
-      // Ajuste de sincronia: positivo = las notas van "antes" respecto al audio
-      // reportado (compensa auriculares Bluetooth, que suenan tarde).
       const renderTime = t + syncOffsetRef.current / 1000;
 
       drawFrame(ctx, cssWidth, cssHeight, {
@@ -196,7 +248,12 @@ export default function Tutorial({ id }: { id: string }) {
         handFilter: handFilterRef.current,
         view: viewRef.current,
       });
-      setDisplayTime(t);
+
+      // UI clock: ~10 Hz (o al pausar / seek grande) — evita re-render React a 60 fps.
+      if (audio.paused || now - lastUiUpdateRef.current > 100) {
+        lastUiUpdateRef.current = now;
+        setDisplayTime(t);
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -210,45 +267,74 @@ export default function Tutorial({ id }: { id: string }) {
     };
   }, [transcription, audioSrc]);
 
+  const seek = useCallback((t: number) => {
+    const audio = audioRef.current;
+    const { a, b } = loopRef.current;
+    const next = coerceSeekIntoLoop(t, a, b, durationRef.current);
+    if (audio) {
+      audio.currentTime = next;
+      clockRef.current.reset();
+    }
+    setDisplayTime(next);
+  }, []);
+
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (audio.paused) void audio.play();
+    if (audio.paused) void audio.play().catch(() => setError("No se pudo reproducir el audio. Pulsa de nuevo o recarga."));
     else audio.pause();
   }, []);
 
-  // Barra espaciadora = play/pausa.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.code === "Space" && e.target === document.body) {
-        e.preventDefault();
-        togglePlay();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlay]);
-
-  const changeSpeed = (rate: number) => {
+  const changeSpeed = useCallback((rate: number) => {
     const audio = audioRef.current;
     if (audio) {
-      // preservesPitch: cambia la velocidad sin cambiar el tono (Safari viejo usa el prefijo).
       audio.preservesPitch = true;
       (audio as HTMLAudioElement & { webkitPreservesPitch?: boolean }).webkitPreservesPitch = true;
       audio.playbackRate = rate;
       clockRef.current.reset();
     }
     setSpeed(rate);
-  };
+  }, []);
 
-  const seek = (t: number) => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.currentTime = t;
-      clockRef.current.reset();
+  const toggleFullscreen = useCallback(async () => {
+    const root = rootRef.current;
+    if (!root) return;
+    try {
+      if (!document.fullscreenElement) await root.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch {
+      /* fullscreen bloqueado por el navegador */
     }
-    setDisplayTime(t);
-  };
+  }, []);
+
+  // Atajos: Space play/pause, ←/→ seek. No interferir en inputs.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlay();
+        return;
+      }
+      if (e.code === "ArrowLeft") {
+        e.preventDefault();
+        const audio = audioRef.current;
+        const t = audio?.currentTime ?? displayTime;
+        const { a, b } = loopRef.current;
+        seek(nudgeTime(t, -SEEK_STEP_SECONDS, durationRef.current, a, b));
+        return;
+      }
+      if (e.code === "ArrowRight") {
+        e.preventDefault();
+        const audio = audioRef.current;
+        const t = audio?.currentTime ?? displayTime;
+        const { a, b } = loopRef.current;
+        seek(nudgeTime(t, SEEK_STEP_SECONDS, durationRef.current, a, b));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [togglePlay, seek, displayTime]);
 
   const changeSyncOffset = (deltaMs: number) => {
     const next = Math.max(-500, Math.min(500, syncOffsetRef.current + deltaMs));
@@ -273,22 +359,32 @@ export default function Tutorial({ id }: { id: string }) {
   const markA = () => {
     const t = audioRef.current?.currentTime ?? 0;
     setLoopA(t);
+    setLoopArmed(true);
     if (loopB !== null && loopB <= t) setLoopB(null);
   };
   const markB = () => {
     const t = audioRef.current?.currentTime ?? 0;
-    if (loopA !== null && t > loopA) setLoopB(t);
+    if (loopA !== null && t > loopA) {
+      setLoopB(t);
+      setLoopArmed(true);
+    }
   };
   const clearLoop = () => {
     setLoopA(null);
     setLoopB(null);
+    setLoopArmed(false);
+  };
+  const armLoopFromHere = () => {
+    if (loopA !== null && loopB !== null) {
+      clearLoop();
+      return;
+    }
+    markA();
   };
 
   const addMarker = () => {
     const t = audioRef.current?.currentTime ?? 0;
-    const next = [...markers, { name: `M${markers.length + 1}`, t }].sort(
-      (a, b) => a.t - b.t,
-    );
+    const next = [...markers, { name: `M${markers.length + 1}`, t }].sort((a, b) => a.t - b.t);
     setMarkers(next);
     saveMarkers(id, next);
   };
@@ -299,47 +395,69 @@ export default function Tutorial({ id }: { id: string }) {
     saveMarkers(id, next);
   };
 
-  if (error) {
+  if (error && !transcription) {
     return (
-      <div className="message">
-        <p>No se pudo cargar el tutorial: {error}</p>
-        <Link href="/" className="btn">
-          ← Volver a la biblioteca
-        </Link>
+      <div className="message tutorial-error">
+        <p>{error}</p>
+        <div className="tutorial-error-actions">
+          <button className="btn active" type="button" onClick={() => setLoadKey((k) => k + 1)}>
+            Reintentar
+          </button>
+          <Link href="/" className="btn">
+            ← Tus canciones
+          </Link>
+        </div>
       </div>
     );
   }
-  if (!transcription || !audioSrc) {
-    return <div className="message">Cargando transcripción…</div>;
+
+  if (loading || !transcription || !audioSrc) {
+    return (
+      <div className="message" role="status">
+        Preparando tu tutorial…
+      </div>
+    );
   }
 
   const duration = transcription.duration;
   const hasHands = transcription.notes.some((n) => n.hand !== null);
+  const loopActive = loopA !== null && loopB !== null;
 
   return (
-    <div className="tutorial">
+    <div className="tutorial" ref={rootRef}>
       <div ref={containerRef} className="stage">
-        <canvas ref={canvasRef} />
+        <canvas ref={canvasRef} aria-hidden className="stage-canvas" />
+        {!audioReady && (
+          <div className="stage-loading" role="status">
+            Cargando audio…
+          </div>
+        )}
         <div className={`rotate-hint${rotateDismissed ? "" : " visible"}`}>
           <div>
-            📱↻ Gira el teléfono: en horizontal las 88 teclas se ven mucho mejor.
+            Gira el teléfono a horizontal: el teclado se lee mucho mejor.
             <br />
-            <button className="btn" onClick={() => setRotateDismissed(true)}>
+            <button className="btn" type="button" onClick={() => setRotateDismissed(true)}>
               Seguir en vertical
             </button>
           </div>
         </div>
       </div>
 
-      <div className="controls">
-        <Link href="/" className="back" aria-label="Volver a la biblioteca">
+      <div className="controls controls-primary">
+        <Link href="/" className="back" aria-label="Volver a tus canciones">
           ←
         </Link>
-        <button className="btn" onClick={togglePlay}>
-          {isPlaying ? "⏸" : "▶"}
+        <button
+          className="btn"
+          type="button"
+          onClick={togglePlay}
+          aria-label={isPlaying ? "Pausar" : "Reproducir"}
+          title={isPlaying ? "Pausar (Espacio)" : "Reproducir (Espacio)"}
+        >
+          {isPlaying ? "Pausa" : "Play"}
         </button>
 
-        <span className="time">
+        <span className="time" aria-live="off">
           {formatTime(displayTime)} / {formatTime(duration)}
         </span>
 
@@ -351,37 +469,70 @@ export default function Tutorial({ id }: { id: string }) {
           step={0.01}
           value={Math.min(displayTime, duration)}
           onChange={(e) => seek(Number(e.target.value))}
-          aria-label="Posición"
+          aria-label="Posición en la canción"
         />
 
         <span className="group" role="group" aria-label="Velocidad">
-          {SPEEDS.map((s) => (
+          {PLAYBACK_SPEEDS.map((s) => (
             <button
               key={s}
+              type="button"
               onClick={() => changeSpeed(s)}
               className={`btn small${speed === s ? " active" : ""}`}
+              aria-pressed={speed === s}
+              title={`Velocidad ${s}x`}
             >
               {s === 1 ? "1x" : `${s}x`}
             </button>
           ))}
         </span>
 
-        <span className="group" role="group" aria-label="Loop A/B">
-          <button className="btn small" onClick={markA}>
+        <span className="group" role="group" aria-label="Loop de práctica">
+          <button
+            className={`btn small${loopArmed || loopActive ? " active" : ""}`}
+            type="button"
+            onClick={armLoopFromHere}
+            title={loopActive ? "Quitar loop" : "Activar loop: marca inicio A en la posición actual"}
+            aria-pressed={loopActive}
+          >
+            Loop
+          </button>
+          <button
+            className="btn small"
+            type="button"
+            onClick={markA}
+            title="Marcar inicio del loop (A)"
+          >
             A{loopA !== null ? ` ${formatTime(loopA)}` : ""}
           </button>
-          <button className="btn small" onClick={markB} disabled={loopA === null}>
+          <button
+            className="btn small"
+            type="button"
+            onClick={markB}
+            disabled={loopA === null}
+            title="Marcar final del loop (B)"
+          >
             B{loopB !== null ? ` ${formatTime(loopB)}` : ""}
           </button>
           {(loopA !== null || loopB !== null) && (
-            <button className="btn small" onClick={clearLoop} aria-label="Quitar loop">
-              ✕
+            <button className="btn small" type="button" onClick={clearLoop} aria-label="Quitar loop">
+              Clear
             </button>
           )}
         </span>
+
+        <button
+          className="btn small"
+          type="button"
+          onClick={() => void toggleFullscreen()}
+          title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+        >
+          {isFullscreen ? "Salir" : "Pantalla completa"}
+        </button>
       </div>
 
-      <div className="controls">
+      <div className="controls controls-secondary">
         {hasHands && (
           <span className="group" role="group" aria-label="Filtro de manos">
             {(
@@ -393,8 +544,11 @@ export default function Tutorial({ id }: { id: string }) {
             ).map(([value, label]) => (
               <button
                 key={value}
+                type="button"
                 onClick={() => setHandFilter(value)}
                 className={`btn small${handFilter === value ? " active" : ""}`}
+                aria-pressed={handFilter === value}
+                title="Separación de manos aproximada (heurística), no exacta"
               >
                 {label}
               </button>
@@ -402,17 +556,18 @@ export default function Tutorial({ id }: { id: string }) {
           </span>
         )}
 
-        <span className="group" role="group" aria-label="Duración de las notas">
+        <span className="group" role="group" aria-label="Duración visual de las notas">
           <span className="group-label">Duración</span>
           {DURATION_CAPS.map((opt) => (
             <button
               key={opt.label}
+              type="button"
               className={`btn small${view.noteDurationCap === opt.value ? " active" : ""}`}
               onClick={() => updateView({ noteDurationCap: opt.value })}
               title={
                 opt.value === null
                   ? "Duración real detectada (con pedal las notas se alargan)"
-                  : `Recortar cada nota a ${opt.value} s para ver menos barras acumuladas`
+                  : `Recortar cada nota a ${opt.value} s`
               }
             >
               {opt.label}
@@ -422,8 +577,10 @@ export default function Tutorial({ id }: { id: string }) {
 
         <button
           className={`btn small${view.showNoteNames ? " active" : ""}`}
+          type="button"
           onClick={() => updateView({ showNoteNames: !view.showNoteNames })}
-          title="Mostrar los nombres de las notas en teclas y barras"
+          title="Mostrar nombres de notas"
+          aria-pressed={view.showNoteNames}
         >
           ABC
         </button>
@@ -431,38 +588,43 @@ export default function Tutorial({ id }: { id: string }) {
         <span className="group" role="group" aria-label="Ajuste de sincronía">
           <button
             className="btn small"
+            type="button"
             onClick={() => changeSyncOffset(-25)}
-            title="Las notas llegan antes que el sonido: retrasarlas"
+            title="Retrasar notas (−25 ms)"
           >
             −
           </button>
           <button
             className="btn small sync-value"
+            type="button"
             onClick={resetSyncOffset}
-            title="Ajuste de sincronía (clic para volver a 0). Súbelo si el sonido llega después que las notas, p. ej. con auriculares Bluetooth."
+            title="Sincronía audio/notas. Útil con auriculares Bluetooth. Clic para 0."
           >
-            Sinc. {syncOffsetMs > 0 ? "+" : ""}{syncOffsetMs} ms
+            Sinc. {syncOffsetMs > 0 ? "+" : ""}
+            {syncOffsetMs} ms
           </button>
           <button
             className="btn small"
+            type="button"
             onClick={() => changeSyncOffset(25)}
-            title="El sonido llega después que las notas: adelantarlas"
+            title="Adelantar notas (+25 ms)"
           >
             +
           </button>
         </span>
 
         <span className="group">
-          <button className="btn small" onClick={addMarker}>
-            ＋ Marcador
+          <button className="btn small" type="button" onClick={addMarker} title="Guardar marcador en esta posición">
+            + Marcador
           </button>
           {markers.map((m, i) => (
             <span key={`${m.t}-${i}`} className="marker">
-              <button className="jump" onClick={() => seek(m.t)}>
+              <button className="jump" type="button" onClick={() => seek(m.t)}>
                 {m.name} {formatTime(m.t)}
               </button>
               <button
                 className="remove"
+                type="button"
                 onClick={() => removeMarker(i)}
                 aria-label={`Eliminar marcador ${m.name}`}
               >
@@ -478,14 +640,22 @@ export default function Tutorial({ id }: { id: string }) {
         src={audioSrc}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false);
+          // Al terminar sin loop activo, dejar al inicio para re-practica.
+          if (loopA === null || loopB === null) {
+            seek(resetPlaybackTime());
+          }
+        }}
+        onCanPlay={() => setAudioReady(true)}
+        onError={() => setError("No se pudo cargar el audio de esta canción.")}
         preload="auto"
       />
 
       <p className="hint">
-        Espacio: reproducir/pausar · A/B: loop de práctica ·{" "}
-        {hasHands ? "verde: mano derecha, azul: izquierda · " : ""}
-        {transcription.notes.length} notas · {transcription.transcription.engine}
+        Espacio: play/pausa · ←/→: ±{SEEK_STEP_SECONDS}s · Loop: A→B ·{" "}
+        {hasHands ? "Verde ≈ derecha, azul ≈ izquierda (aproximado) · " : ""}
+        {transcription.notes.length} notas
       </p>
     </div>
   );

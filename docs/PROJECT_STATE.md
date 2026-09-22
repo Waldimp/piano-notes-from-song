@@ -60,7 +60,25 @@ Actualizado: 2026-09-21 (beta cerrada / comercial temprana — sin tocar Modal, 
 | Soporte | `NEXT_PUBLIC_SUPPORT_EMAIL` (opcional) en footer |
 | Analytics | Solo documentado — [`ANALYTICS_EVENTS.md`](ANALYTICS_EVENTS.md) |
 
-**Pendiente beta 5–10 usuarios:** email soporte en prod, invitaciones/onboarding humano opcional, QA móvil real, tutorial/player polish, cutover Mini Pack productivo (decisión aparte), respuesta Wompi recurrente.
+**Pendiente beta 5–10 usuarios:** email soporte en prod, invitaciones/onboarding humano opcional, QA móvil real, cutover Mini Pack productivo (decisión aparte), respuesta Wompi recurrente.
+
+## PLAYER / TUTORIAL STATE
+
+Actualizado: 2026-09-21 — polish de producto sobre Canvas 2D existente (sin WebGL, sin MIDI input).
+
+| Área | Estado |
+| --- | --- |
+| Reloj | `<audio>` autoritativo + `MediaClock` (interpolación anti-jitter) |
+| Controles | Play/Pausa, seek, tiempo, velocidades **0.5 / 0.75 / 1 / 1.25**, sync ±ms, marcadores |
+| Loop | Botón Loop + A / B / Clear; wrap al llegar a B; seek fuera del rango → A; guías en canvas |
+| Manos | Filtro Ambas/Izq/Der **si** `hand !== null`; asignación = heurística de pitch (`ml/piano_ml/hands.py`), no exacta |
+| Mobile | Hint landscape no bloqueante; controles táctiles; seek full-width en ≤600px |
+| Fullscreen | `requestFullscreen` sobre el root del tutorial |
+| Atajos | Space play/pause; ←/→ ±5s (ignorados en inputs) |
+| Performance | UI clock ~10 Hz; visible-range binario; sin re-render React a 60 fps |
+| Loading/errores | Estados claros + retry; sin paths/stack/Modal |
+
+**Limitaciones conocidas:** sin pitch-preservation perfecta en todos los navegadores; manos aproximadas; sin wait-for-you / MIDI / partitura; teclado 88 teclas a ancho completo (en vertical es estrecho).
 
 ## Siguiente tarea
 

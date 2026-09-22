@@ -1,0 +1,26 @@
+#!/usr/bin/env node
+/**
+ * prepare-commit-msg — strip Cursor auto Co-authored-by trailers.
+ * Cross-platform (Node). Enabled via: git config core.hooksPath .githooks
+ */
+const fs = require("node:fs");
+
+const msgFile = process.argv[2];
+if (!msgFile || !fs.existsSync(msgFile)) process.exit(0);
+
+const original = fs.readFileSync(msgFile, "utf8");
+const cleaned = original
+  .split(/\r?\n/)
+  .filter((line) => {
+    const t = line.trim();
+    if (!/^co-authored-by:/i.test(t)) return true;
+    if (/cursoragent@cursor\.com/i.test(t)) return false;
+    if (/^co-authored-by:\s*cursor(\s|<|$)/i.test(t)) return false;
+    return true;
+  })
+  .join("\n")
+  .replace(/\n{3,}/g, "\n\n")
+  .replace(/[ \t]+\n/g, "\n");
+
+if (cleaned !== original) fs.writeFileSync(msgFile, cleaned);
+process.exit(0);
