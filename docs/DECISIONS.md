@@ -125,4 +125,11 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Fecha:** 2026-09-21
 **Decisión:** Declarar Practice/Plus **SUBSCRIPTIONS PARTIALLY READY**: reutilizar `billing_subscriptions`, añadir period grants idempotentes (0013), adapters OpenAPI confirmados (`EnlacePagoRecurrente`, `.../suscripciones`), y **HARD BLOCK** de afiliación/grant/cancel individual hasta que Wompi documente correlación webhook↔suscriptor y cancel por afiliado. No fingir E2E ni cancel solo en DB.
 **Motivo:** OpenAPI confirma listado de suscriptores y disable del enlace compartido, pero no payload de renovación ni cancel individual; otorgar créditos o cancelar localmente sería inseguro.
-**Estado:** Vigente. Preguntas a soporte listadas en [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md). `BILLING_SUBSCRIPTIONS_ENABLED=false`.
+**Estado:** SUPERSEDED parcialmente por DEC-017 (support response). Cancel sigue bloqueado.
+
+## DEC-017
+
+**Fecha:** 2026-09-23
+**Decisión:** Tras respuesta de soporte Wompi: mapear `EstadoSuscripcion` 0–4; correlacionar webhooks recurrentes por `IdSuscripcion`; settlement compartido `processVerifiedSubscriptionPayment` → `grant_subscription_period_credits`; reconciliación diaria secundaria sin auto-grant; arquitectura **WEBHOOK PRIMARY + DAILY RECONCILIATION SECONDARY**. Cancel individual permanece **CANCELLATION PROVIDER LIMITATION** (one-link-per-subscription candidato, no probado). Flags productivos sin cambio (`BILLING_SUBSCRIPTIONS_ENABLED=false`, `WOMPI_EXPECT_PRODUCTIVE=false`).
+**Motivo:** Wompi cobra; Pianissimo verifica/contabiliza/reconcilia. Sin simulación sandbox de renovación; E2E real solo en canary futuro.
+**Estado:** Vigente. Ver [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md).

@@ -7,6 +7,10 @@
     {
       "path": "/api/dispatch-wake",
       "schedule": "5 12 * * *"
+    },
+    {
+      "path": "/api/billing/reconcile-subscriptions",
+      "schedule": "20 12 * * *"
     }
   ]
 }

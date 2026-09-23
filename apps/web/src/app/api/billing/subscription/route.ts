@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { createSubscriptionCheckout } from "@/lib/billing/subscriptionCheckout";
 import {
   assertSubscriptionProduct,
   subscriptionLifecycleHardBlock,
@@ -12,10 +13,8 @@ export const dynamic = "force-dynamic";
  * POST /api/billing/subscription
  * Body: { product_code: "practice" | "plus" }
  *
- * Auth required. Server owns price/credits.
- * HARD BLOCK: returns subscriptions_partially_ready / subscriptions_disabled
- * until Wompi documents payment↔subscriber correlation + individual cancel.
- * Does NOT create productive charges or grant credits.
+ * Server owns price/credits. Creates pending row + dedicated EnlacePagoRecurrente
+ * when BILLING_SUBSCRIPTIONS_ENABLED=true. Cancel remains unsupported.
  */
 export async function POST(request: Request) {
   const user = await requireUser(request);
@@ -39,24 +38,39 @@ export async function POST(request: Request) {
     );
   }
 
-  const block = subscriptionLifecycleHardBlock("docs_gap");
-  return NextResponse.json(
-    {
-      ok: false,
-      error: block.error,
-      code: block.code,
-      product_code: productCheck.productCode,
-      gaps: block.gaps,
-      cancel_supported: false,
-      credit_grant_supported: false,
-    },
-    { status: block.status }
-  );
+  const created = await createSubscriptionCheckout({
+    userId: user.id,
+    productCode: productCheck.productCode,
+  });
+
+  if (!created.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: created.error,
+        code: created.code,
+        product_code: productCheck.productCode,
+        cancel_supported: false,
+        credit_grant_supported: created.code !== "subscriptions_disabled",
+      },
+      { status: created.status }
+    );
+  }
+
+  return NextResponse.json({
+    ok: true,
+    subscription_id: created.subscriptionId,
+    product_code: created.productCode,
+    url_enlace: created.urlEnlace,
+    cancel_supported: false,
+    credit_grant_supported: true,
+  });
 }
 
 /**
  * DELETE /api/billing/subscription — individual cancel.
- * Always HARD BLOCK: Wompi only documents disabling the shared link.
+ * Always HARD BLOCK: Wompi has no individual cancel API (support confirmed).
+ * Never accepts client-supplied external_link_id.
  */
 export async function DELETE(request: Request) {
   const user = await requireUser(request);
@@ -65,6 +79,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "no autorizado" }, { status: 401 });
   }
 
+  // Ignore any body link ids — server would load ownership from DB if cancel existed.
   const block = subscriptionLifecycleHardBlock("cancel_unsupported");
   return NextResponse.json(
     {

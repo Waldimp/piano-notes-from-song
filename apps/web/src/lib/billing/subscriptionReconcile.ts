@@ -9,6 +9,7 @@
  * verified approved TransaccionCompra id.
  */
 
+import { mapWompiEstadoSuscripcion } from "./wompiSubscriptionStatus";
 import type { WompiSuscripcionRecurrente } from "./wompi";
 
 /** Confirmed by Wompi User Terms (pagos recurrentes). */
@@ -48,7 +49,8 @@ export type SyncObservationEvent = {
     | "payment_count_increased"
     | "payment_count_unchanged"
     | "payment_count_decreased"
-    | "estado_changed";
+    | "estado_changed"
+    | "reconciliation_requires_review";
   observationKey: string;
   /** Always false until a verified approved transaction id is correlated. */
   creditGrantAllowed: false;
@@ -139,21 +141,27 @@ export function reconcileWompiSubscriptionSnapshot(
       // Historical payments may already exist; do not grant without verified txs.
       pending = snapshot.pagosRealizados;
       needsVerifiedTransaction = true;
-      events.push({
-        type: "payment_count_increased",
-        observationKey: buildPagosObservationKey({
-          idSuscriptor: subscriberKey,
-          pagosRealizados: snapshot.pagosRealizados,
-          externalSubscriptionId: subId,
-        }),
-        creditGrantAllowed: false,
-        detail: {
-          from: 0,
-          to: snapshot.pagosRealizados,
-          reason:
-            "pagosRealizados alone is not a verified approved TransaccionCompra; grant blocked",
-        },
-      });
+        events.push({
+          type: "payment_count_increased",
+          observationKey: buildPagosObservationKey({
+            idSuscriptor: subscriberKey,
+            pagosRealizados: snapshot.pagosRealizados,
+            externalSubscriptionId: subId,
+          }),
+          creditGrantAllowed: false,
+          detail: {
+            from: 0,
+            to: snapshot.pagosRealizados,
+            reason:
+              "RECONCILIATION_REQUIRES_REVIEW: pagosRealizados alone is not a verified TransaccionCompra",
+          },
+        });
+        events.push({
+          type: "reconciliation_requires_review",
+          observationKey: `wompi:subscriber:${subscriberKey}:review:pagos:${snapshot.pagosRealizados}`,
+          creditGrantAllowed: false,
+          detail: { pagosRealizados: snapshot.pagosRealizados },
+        });
     }
   } else {
     events.push({
@@ -183,9 +191,15 @@ export function reconcileWompiSubscriptionSnapshot(
             to: nextPagos,
             delta: nextPagos - prevPagos,
             reason:
-              "pagosRealizados alone is not a verified approved TransaccionCompra; grant blocked",
+              "RECONCILIATION_REQUIRES_REVIEW: pagosRealizados alone is not a verified TransaccionCompra",
             retryPolicy: WOMPI_RECURRENT_RETRY,
           },
+        });
+        events.push({
+          type: "reconciliation_requires_review",
+          observationKey: `wompi:subscriber:${subscriberKey}:review:pagos:${nextPagos}`,
+          creditGrantAllowed: false,
+          detail: { from: prevPagos, to: nextPagos },
         });
       } else if (nextPagos === prevPagos) {
         events.push({
@@ -209,6 +223,7 @@ export function reconcileWompiSubscriptionSnapshot(
       snapshot.estado != null &&
       previous.wompiEstadoRaw !== snapshot.estado
     ) {
+      const mapped = mapWompiEstadoSuscripcion(snapshot.estado);
       events.push({
         type: "estado_changed",
         observationKey: `wompi:subscriber:${subscriberKey}:estado:${previous.wompiEstadoRaw}->${snapshot.estado}`,
@@ -216,7 +231,9 @@ export function reconcileWompiSubscriptionSnapshot(
         detail: {
           from: previous.wompiEstadoRaw,
           to: snapshot.estado,
-          note: "EstadoSuscripcion labels 0–4 not published in OpenAPI; store raw only",
+          label: mapped.label,
+          internalStatus: mapped.internalStatus,
+          source: "Wompi technical support EstadoSuscripcion map",
         },
       });
     }
@@ -246,9 +263,16 @@ export function reconcileWompiSubscriptionSnapshot(
   };
 }
 
-/** OpenAPI: default Estado filter description says "Activa" — label mapping still unknown. */
+/** Official labels (Wompi technical support). */
 export const WOMPI_ESTADO_SUSCRIPCION_NOTES = {
   enumValues: [0, 1, 2, 3, 4] as const,
-  openApiDefaultFilterDescription: "Activa",
-  labelsPublished: false,
+  labels: {
+    0: "Activa",
+    1: "Suspendida",
+    2: "Cancelada",
+    3: "Finalizada",
+    4: "NoDefinido",
+  } as const,
+  labelsPublished: true,
+  source: "Wompi technical support response",
 } as const;

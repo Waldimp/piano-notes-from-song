@@ -20,25 +20,20 @@ import {
   environmentMatches,
   isApprovedTransaction,
 } from "@/lib/billing/validate";
+import {
+  extractIdSuscripcion,
+  processVerifiedSubscriptionPayment,
+  type SubscriptionWebhookHints,
+} from "@/lib/billing/subscriptionSettlement";
 import { serviceClient } from "@/lib/server/auth";
 
-export type WompiWebhookPayload = {
+export type WompiWebhookPayload = SubscriptionWebhookHints & {
   IdCuenta?: string;
-  IdTransaccion?: string;
-  Monto?: number;
   ResultadoTransaccion?: string;
-  EsProductiva?: boolean;
   CodigoAutorizacion?: string;
-  ModuloUtilizado?: string;
   Aplicativo?: { Id?: string; Nombre?: string };
-  EnlacePago?: {
-    Id?: number;
-    IdentificadorEnlaceComercio?: string;
-    NombreProducto?: string;
-  };
-  /** Not confirmed in official webhook docs for recurrent charges — tolerate but do not settle on alone. */
-  IdSuscripcion?: string;
-  idSuscripcion?: string;
+  /** Optional support field; not required for settlement. */
+  EstadoSuscripcion?: number;
 };
 
 export async function createCheckoutForUser(opts: {
@@ -72,12 +67,11 @@ export async function createCheckoutForUser(opts: {
   }
 
   if (product.billingType !== "one_time") {
-    // Recurrent checkout path reserved; do not invent per-subscriber renewal grants.
     return {
       ok: false,
       status: 501,
-      error: "Subscription checkout not enabled yet",
-      code: "subscription_blocked",
+      error: "Use /api/billing/subscription for Practice/Plus",
+      code: "subscription_use_dedicated_endpoint",
     };
   }
 
@@ -170,6 +164,14 @@ export async function createCheckoutForUser(opts: {
   }
 }
 
+function classifyWebhook(payload: WompiWebhookPayload): "one_time" | "subscription" | "unknown" {
+  if (extractIdSuscripcion(payload)) return "subscription";
+  const modulo = payload.ModuloUtilizado ?? "";
+  if (/recurrent|suscrip/i.test(modulo)) return "subscription";
+  if (payload.EnlacePago?.IdentificadorEnlaceComercio?.trim()) return "one_time";
+  return "unknown";
+}
+
 export async function processWompiWebhook(opts: {
   rawBody: string;
   headerHash: string | null;
@@ -192,37 +194,15 @@ export async function processWompiWebhook(opts: {
   }
 
   const idTransaccion = payload.IdTransaccion?.trim();
-  const commerceLink = payload.EnlacePago?.IdentificadorEnlaceComercio?.trim();
   if (!idTransaccion) {
     return { status: 400, body: { ok: false, code: "missing_transaction_id" } };
   }
 
-  // One-time Mini Pack requires IdentificadorEnlaceComercio (existing path).
-  // Without it, never invent subscription settlement — docs do not confirm
-  // webhook↔subscriber correlation for EnlacePagoRecurrente.
-  if (!commerceLink) {
-    const modulo = payload.ModuloUtilizado ?? "";
-    const hasSubHint =
-      Boolean(payload.IdSuscripcion || payload.idSuscripcion) ||
-      /recurrent|suscrip/i.test(modulo);
-    if (hasSubHint || !payload.EnlacePago) {
-      return {
-        status: 501,
-        body: {
-          ok: false,
-          code: "recurrent_lifecycle_blocked",
-          detail:
-            "Subscription webhooks are not settled until Wompi documents subscriber correlation",
-        },
-      };
-    }
-    return { status: 400, body: { ok: false, code: "missing_commerce_link" } };
-  }
+  const kind = classifyWebhook(payload);
 
   const sb = serviceClient();
   const externalEventKey = idTransaccion;
 
-  // Idempotent insert of raw event
   const { data: existing } = await sb
     .from("billing_events")
     .select("id, processing_status")
@@ -242,7 +222,7 @@ export async function processWompiWebhook(opts: {
         provider: "wompi",
         external_event_key: externalEventKey,
         external_transaction_id: idTransaccion,
-        event_type: "webhook",
+        event_type: kind === "subscription" ? "webhook_subscription" : "webhook",
         payload,
         signature_valid: true,
         processing_status: "received",
@@ -250,7 +230,6 @@ export async function processWompiWebhook(opts: {
       .select("id")
       .single();
     if (evErr) {
-      // Unique race → treat as duplicate
       if (evErr.code === "23505") {
         return { status: 200, body: { ok: true, code: "already_received" } };
       }
@@ -281,6 +260,71 @@ export async function processWompiWebhook(opts: {
     return reject("wrong_aplicativo");
   }
 
+  // ---------- Subscription path (IdSuscripcion) ----------
+  if (kind === "subscription") {
+    if (!billingSubscriptionsEnabled()) {
+      // Accept signature + record event, but do not grant while flag off.
+      return reject("subscriptions_disabled", 503);
+    }
+
+    const idSuscripcion = extractIdSuscripcion(payload);
+    if (!idSuscripcion) {
+      return reject("missing_IdSuscripcion");
+    }
+
+    let tx;
+    try {
+      tx = await getTransaccionCompra(cfg, idTransaccion);
+    } catch {
+      return reject("transaction_lookup_failed", 502);
+    }
+
+    if (!isApprovedTransaction(tx)) {
+      return reject("transaction_not_approved");
+    }
+
+    if (
+      !environmentMatches({
+        webhookEsProductiva: payload.EsProductiva,
+        txEsReal: tx.esReal,
+        expectProductive: cfg.expectProductive,
+      }).ok
+    ) {
+      return reject("wrong_environment_tx");
+    }
+
+    const settled = await processVerifiedSubscriptionPayment({
+      idSuscripcion,
+      idTransaccion,
+      verifiedTx: tx,
+      payload,
+      eventId,
+      allowPendingBind: true,
+    });
+
+    if (!settled.ok) {
+      return reject(settled.code, settled.http ?? 400);
+    }
+
+    await sb
+      .from("billing_events")
+      .update({ processing_status: "processed" })
+      .eq("id", eventId!);
+
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        code: settled.code,
+        subscription_id: settled.subscriptionId,
+        period_key: settled.periodKey,
+        credits_granted: settled.creditsGranted,
+      },
+    };
+  }
+
+  // ---------- Mini Pack one-time path ----------
+  const commerceLink = payload.EnlacePago?.IdentificadorEnlaceComercio?.trim();
   if (!commerceLink) {
     return reject("missing_commerce_link");
   }
@@ -307,7 +351,6 @@ export async function processWompiWebhook(opts: {
     return { status: 200, body: { ok: true, code: "already_settled" } };
   }
 
-  // Server-to-server confirmation (docs: Validar Consultando Transacción)
   let tx;
   try {
     tx = await getTransaccionCompra(cfg, idTransaccion);

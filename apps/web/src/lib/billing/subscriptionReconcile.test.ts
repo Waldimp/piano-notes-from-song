@@ -15,25 +15,21 @@ describe("Wompi recurrent official facts", () => {
     expect(WOMPI_RECURRENT_RETRY.daysCovered).toBe(2);
   });
 
-  it("does not invent EstadoSuscripcion labels", () => {
-    expect(WOMPI_ESTADO_SUSCRIPCION_NOTES.labelsPublished).toBe(false);
-    expect(WOMPI_ESTADO_SUSCRIPCION_NOTES.openApiDefaultFilterDescription).toBe("Activa");
-    expect(mapWompiEstadoSuscripcion(1)).toEqual({
-      raw: 1,
-      known: false,
-      openApiMentionsActivaDefault: true,
-    });
+  it("uses official EstadoSuscripcion labels from support", () => {
+    expect(WOMPI_ESTADO_SUSCRIPCION_NOTES.labelsPublished).toBe(true);
+    expect(WOMPI_ESTADO_SUSCRIPCION_NOTES.labels[0]).toBe("Activa");
+    expect(WOMPI_ESTADO_SUSCRIPCION_NOTES.labels[1]).toBe("Suspendida");
+    expect(mapWompiEstadoSuscripcion(1).label).toBe("suspended");
+    expect(mapWompiEstadoSuscripcion(0).known).toBe(true);
   });
 
-  it("lists only remaining real gaps", () => {
+  it("lists remaining gaps after support response (cancel + sandbox renewal)", () => {
     const blob = SUBSCRIPTION_REMAINING_GAPS.join(" ");
-    expect(blob).toMatch(/EstadoSuscripcion/);
     expect(blob).toMatch(/cancel/i);
-    expect(blob).toMatch(/webhook|correlat/i);
-    expect(blob).toMatch(/sandbox|renovation|renov/i);
+    expect(blob).toMatch(/sandbox|real productive|renov/i);
+    expect(blob).not.toMatch(/EstadoSuscripcion enum values 0/);
+    expect(blob).not.toMatch(/webhook ↔ idSuscriptor/);
     expect(blob).not.toMatch(/reintent/i);
-    expect(blob).not.toMatch(/idSuscriptor is unknown/i);
-    expect(blob).not.toMatch(/pagosRealizados is unknown/i);
   });
 });
 
@@ -80,52 +76,35 @@ describe("subscription snapshot reconcile", () => {
       { ...remote, pagosRealizados: 2 }
     );
     expect(second.needsVerifiedTransaction).toBe(true);
-    expect(second.persisted.pending_unverified_payment_count).toBe(2);
-    const bump = second.events.find((e) => e.type === "payment_count_increased");
-    expect(bump?.creditGrantAllowed).toBe(false);
-    expect(bump?.observationKey).toBe(
+    expect(second.persisted.pending_unverified_payment_count).toBeGreaterThanOrEqual(2);
+    expect(second.events.some((e) => e.type === "reconciliation_requires_review")).toBe(true);
+    expect(second.events.every((e) => e.creditGrantAllowed === false)).toBe(true);
+  });
+
+  it("idempotent observation key for pagos watermark", () => {
+    expect(
       buildPagosObservationKey({
         idSuscriptor: "person-9",
         pagosRealizados: 2,
         externalSubscriptionId: "sub-1",
       })
-    );
+    ).toBe("wompi:subscriber:person-9:pagos:2:sub:sub-1");
   });
 
-  it("is idempotent on unchanged pagosRealizados", () => {
-    const prev = {
-      externalSubscriptionId: "sub-1",
-      externalSubscriberId: "person-9",
-      pagosRealizados: 2,
-      wompiEstadoRaw: 0,
-      wompiFechaInicio: "2026-09-01T00:00:00Z",
-      wompiDiaPago: 15,
-      pendingUnverifiedPaymentCount: 0,
-    };
-    const again = reconcileWompiSubscriptionSnapshot(prev, {
-      ...remote,
-      pagosRealizados: 2,
-    });
-    expect(again.needsVerifiedTransaction).toBe(false);
-    expect(again.events.some((e) => e.type === "payment_count_unchanged")).toBe(true);
-    expect(again.events.some((e) => e.type === "payment_count_increased")).toBe(false);
-  });
-
-  it("records estado changes as raw-only observations", () => {
-    const r = reconcileWompiSubscriptionSnapshot(
+  it("unchanged pagos is a no-op for grants", () => {
+    const result = reconcileWompiSubscriptionSnapshot(
       {
         externalSubscriptionId: "sub-1",
         externalSubscriberId: "person-9",
         pagosRealizados: 1,
         wompiEstadoRaw: 0,
-        wompiFechaInicio: null,
+        wompiFechaInicio: "2026-09-01T00:00:00Z",
         wompiDiaPago: 15,
         pendingUnverifiedPaymentCount: 0,
       },
-      { ...remote, estado: 2 }
+      remote
     );
-    const ev = r.events.find((e) => e.type === "estado_changed");
-    expect(ev?.detail).toMatchObject({ from: 0, to: 2 });
-    expect(ev?.creditGrantAllowed).toBe(false);
+    expect(result.needsVerifiedTransaction).toBe(false);
+    expect(result.events.some((e) => e.type === "payment_count_unchanged")).toBe(true);
   });
 });

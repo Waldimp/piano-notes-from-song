@@ -71,43 +71,25 @@ describe("period grant idempotency keys (internal)", () => {
     ).toBe("2026-09-21:tx-1");
   });
 
-  it("does not invent EstadoSuscripcion labels", () => {
-    expect(mapWompiEstadoSuscripcion(0)).toEqual({
-      raw: 0,
-      known: false,
-      openApiMentionsActivaDefault: true,
-    });
+  it("maps EstadoSuscripcion with official support labels", () => {
+    expect(mapWompiEstadoSuscripcion(0).label).toBe("active");
+    expect(mapWompiEstadoSuscripcion(1).label).toBe("suspended");
+    expect(mapWompiEstadoSuscripcion(2).known).toBe(true);
     expect(mapWompiEstadoSuscripcion(undefined).raw).toBeNull();
   });
 });
 
 describe("subscription lifecycle HARD BLOCK", () => {
-  it("blocks affiliation with documented gaps", () => {
+  it("blocks affiliation when subscriptions flag is off", () => {
     const prev = process.env.BILLING_SUBSCRIPTIONS_ENABLED;
-    const prevBilling = process.env.BILLING_ENABLED;
-    const prevId = process.env.WOMPI_CLIENT_ID;
-    const prevSecret = process.env.WOMPI_CLIENT_SECRET;
     try {
-      process.env.BILLING_ENABLED = "true";
-      process.env.WOMPI_CLIENT_ID = "app";
-      process.env.WOMPI_CLIENT_SECRET = "secret-not-real";
-      process.env.BILLING_SUBSCRIPTIONS_ENABLED = "true";
-      const block = subscriptionLifecycleHardBlock("docs_gap");
+      delete process.env.BILLING_SUBSCRIPTIONS_ENABLED;
+      const block = subscriptionLifecycleHardBlock("disabled");
       expect(block.ok).toBe(false);
-      expect(block.code).toBe("subscriptions_partially_ready");
-      expect(block.gaps.length).toBe(4);
-      expect(block.gaps.some((g) => /cancel/i.test(g))).toBe(true);
-      expect(block.gaps.some((g) => /webhook|correlat/i.test(g))).toBe(true);
-      expect(block.gaps.every((g) => !/reintent/i.test(g))).toBe(true);
+      expect(block.code).toBe("subscriptions_disabled");
     } finally {
       if (prev === undefined) delete process.env.BILLING_SUBSCRIPTIONS_ENABLED;
       else process.env.BILLING_SUBSCRIPTIONS_ENABLED = prev;
-      if (prevBilling === undefined) delete process.env.BILLING_ENABLED;
-      else process.env.BILLING_ENABLED = prevBilling;
-      if (prevId === undefined) delete process.env.WOMPI_CLIENT_ID;
-      else process.env.WOMPI_CLIENT_ID = prevId;
-      if (prevSecret === undefined) delete process.env.WOMPI_CLIENT_SECRET;
-      else process.env.WOMPI_CLIENT_SECRET = prevSecret;
     }
   });
 
@@ -115,6 +97,7 @@ describe("subscription lifecycle HARD BLOCK", () => {
     const block = subscriptionLifecycleHardBlock("cancel_unsupported");
     expect(block.code).toBe("individual_cancel_unsupported");
     expect(block.status).toBe(501);
+    expect(block.gaps.some((g) => /cancel/i.test(g))).toBe(true);
   });
 });
 
@@ -125,11 +108,9 @@ describe("subscription API / SQL trust boundaries", () => {
     expect(route).toContain("product_code");
     expect(route).not.toContain("price_usd");
     expect(route).not.toMatch(/credits:\s*\d/);
-    expect(route).toContain("subscriptionLifecycleHardBlock");
     expect(route).toContain("cancel_unsupported");
-    expect(route).toContain("docs_gap");
     expect(route).toContain("cancel_supported: false");
-    expect(route).toContain("credit_grant_supported: false");
+    expect(route).toContain("createSubscriptionCheckout");
   });
 
   it("pricing UI keeps Practice/Plus buttons disabled", () => {
@@ -146,7 +127,7 @@ describe("subscription API / SQL trust boundaries", () => {
     const page = readWeb("src/app/account/page.tsx");
     expect(page).not.toContain("Manage / Cancel");
     expect(page).toContain("subscriptionsEnabled");
-    expect(page).toMatch(/próximamente|contáctanos/i);
+    expect(page).toMatch(/Cancelación individual|próximamente|contáctanos/i);
   });
 
   it("migration 0013 adds period grants + grant RPC without authenticated writes", () => {
@@ -160,6 +141,14 @@ describe("subscription API / SQL trust boundaries", () => {
     expect(sql).not.toMatch(/for update to authenticated/i);
   });
 
+  it("migration 0015 expands statuses and dedicated_enlace", () => {
+    const sql = readRepo("migrations/supabase/0015_subscription_status_reconcile.sql");
+    expect(sql).toContain("suspended");
+    expect(sql).toContain("finished");
+    expect(sql).toContain("dedicated_enlace");
+    expect(sql).toContain("reconciliation_status");
+  });
+
   it("wompi adapter exposes confirmed recurrent endpoints only", () => {
     const wompi = readWeb("src/lib/billing/wompi.ts");
     expect(wompi).toContain("/EnlacePagoRecurrente");
@@ -169,10 +158,11 @@ describe("subscription API / SQL trust boundaries", () => {
     expect(wompi).toContain("MUST NOT be used as per-user cancel");
   });
 
-  it("webhook keeps Mini Pack path and blocks uncorrelated recurrent", () => {
+  it("webhook settles subscriptions via IdSuscripcion and keeps Mini Pack path", () => {
     const logic = readWeb("src/lib/billing/checkout.ts");
     expect(logic).toContain("settle_billing_purchase");
-    expect(logic).toContain("recurrent_lifecycle_blocked");
+    expect(logic).toContain("processVerifiedSubscriptionPayment");
     expect(logic).toContain("IdentificadorEnlaceComercio");
+    expect(logic).toContain("IdSuscripcion");
   });
 });

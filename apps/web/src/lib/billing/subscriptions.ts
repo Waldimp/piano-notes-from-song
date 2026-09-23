@@ -1,16 +1,15 @@
 /**
  * Practice/Plus subscription domain helpers.
  *
- * Confirmed (OpenAPI + Términos Usuario):
- * - Shared EnlacePagoRecurrente + GET .../suscripciones (id, idSuscriptor,
- *   pagosRealizados, fechaInicio, diaPago, estado raw 0–4, …)
- * - Auto-renew; failed charge retries every 4h on billing day + next day
+ * Confirmed (Wompi technical support + OpenAPI + User Terms):
+ * - EstadoSuscripcion 0–4 mapped (see wompiSubscriptionStatus.ts)
+ * - Webhook recurrent charges include IdSuscripcion
+ * - Auto-renew + retries by Wompi (we do not charge)
+ * - NO individual cancel API — only disable whole EnlacePagoRecurrente
+ * - NO sandbox renewal simulation (real merchant required)
  *
- * Still HARD BLOCK for credit grants / affiliation activation:
- * - webhook ↔ idSuscriptor correlation
- * - individual cancel API (user terms: cancel via merchant / Wompi user tools)
- * - EstadoSuscripcion label map 0–4
- * - sandbox renewal simulation
+ * Cancel stays HARD BLOCKED until one-link-per-subscription is proven safe
+ * in a real productive canary (see WOMPI_INTEGRATION.md).
  */
 
 import {
@@ -19,6 +18,7 @@ import {
   type BillingProductCode,
 } from "./catalog";
 import { billingSubscriptionsEnabled } from "./wompi";
+import { mapWompiEstadoSuscripcion } from "./wompiSubscriptionStatus";
 
 export type SubscriptionProductCode = "practice" | "plus";
 
@@ -28,7 +28,7 @@ export function isSubscriptionProductCode(
   return value === "practice" || value === "plus";
 }
 
-/** Stable period key for idempotent grants (provider + sub + period). */
+/** Stable period key for idempotent grants (day + optional tx). */
 export function buildPeriodKey(opts: {
   periodStartIso: string;
   externalTransactionId?: string;
@@ -40,10 +40,6 @@ export function buildPeriodKey(opts: {
   return day;
 }
 
-/**
- * Expected credits for a confirmed period payment — server catalog only.
- * Never trust client-supplied credit amounts.
- */
 export function expectedPeriodCredits(productCode: BillingProductCode): number | null {
   if (!isSubscriptionProductCode(productCode)) return null;
   return resolveProduct(productCode).credits;
@@ -54,21 +50,8 @@ export function expectedPeriodPriceUsd(productCode: BillingProductCode): number 
   return resolveProduct(productCode).priceUsd;
 }
 
-/**
- * Wompi EstadoSuscripcion is an undocumented int enum (0–4) in OpenAPI.
- * OpenAPI filter default description mentions "Activa" but does not map numbers.
- * Store raw; do not invent display names.
- */
-export function mapWompiEstadoSuscripcion(raw: number | undefined): {
-  raw: number | null;
-  known: false;
-  openApiMentionsActivaDefault: true;
-} {
-  if (raw === undefined || Number.isNaN(Number(raw))) {
-    return { raw: null, known: false, openApiMentionsActivaDefault: true };
-  }
-  return { raw: Number(raw), known: false, openApiMentionsActivaDefault: true };
-}
+/** @deprecated Prefer mapWompiEstadoSuscripcion from wompiSubscriptionStatus — re-export for callers. */
+export { mapWompiEstadoSuscripcion };
 
 export type SubscriptionLifecycleBlock = {
   ok: false;
@@ -78,15 +61,16 @@ export type SubscriptionLifecycleBlock = {
   gaps: string[];
 };
 
-/** Remaining gaps that still block safe credit grants / cancel. */
+/**
+ * Remaining operational gaps after Wompi support response.
+ * Credit grants + IdSuscripcion correlation are implemented; cancel is not.
+ */
 export const SUBSCRIPTION_REMAINING_GAPS = [
-  "Meaning of EstadoSuscripcion enum values 0–4 (OpenAPI only says default filter is Activa)",
-  "Individual subscriber cancel via merchant API (User Terms: cancel with merchant or Wompi user tools; API only disables whole EnlacePagoRecurrente)",
-  "Webhook payload fields that correlate a recurrent charge to idSuscriptor / subscription id",
-  "Official sandbox way to simulate a renewal without waiting for diaDePago",
+  "Individual subscriber cancel API does not exist (Wompi support): only POST /EnlacePagoRecurrente/{id} disables the entire link",
+  "One-link-per-subscription cancel strategy is not yet proven safe against multi-affiliate / panel limits (see CANCELLATION PROVIDER LIMITATION)",
+  "Sandbox renewal simulation does not exist; real productive merchant required for renewal E2E",
 ] as const;
 
-/** Shared HARD BLOCK payload for affiliation / cancel / grant activation. */
 export function subscriptionLifecycleHardBlock(
   reason: "disabled" | "docs_gap" | "cancel_unsupported" = "docs_gap"
 ): SubscriptionLifecycleBlock {
@@ -98,7 +82,7 @@ export function subscriptionLifecycleHardBlock(
       status: 501,
       code: "individual_cancel_unsupported",
       error:
-        "No merchant API for individual cancel is documented. User Terms say cancel via merchant agreement or Wompi user tools; POST /EnlacePagoRecurrente/{id} disables the shared link for everyone.",
+        "Wompi confirmed there is no API to cancel an individual subscription. Disabling EnlacePagoRecurrente affects the whole link. Manage/Cancel stays disabled until a dedicated-link design is proven safe.",
       gaps,
     };
   }
@@ -113,12 +97,13 @@ export function subscriptionLifecycleHardBlock(
     };
   }
 
+  // Flag on but cancel/docs still incomplete for full self-serve lifecycle
   return {
     ok: false,
     status: 501,
-    code: "subscriptions_partially_ready",
+    code: "subscriptions_cancel_limited",
     error:
-      "Practice/Plus sync/reconcile is ready, but credit grants stay blocked until webhook↔subscriber correlation is documented. pagosRealizados increments alone never grant credits.",
+      "Subscription payments are architecturally ready, but individual cancel remains unsupported by Wompi.",
     gaps,
   };
 }
@@ -150,4 +135,9 @@ export function assertSubscriptionProduct(productCode: string): {
     };
   }
   return { ok: true, productCode };
+}
+
+/** Whether affiliation/checkout may proceed (flag on). Cancel remains separate. */
+export function subscriptionAffiliationAllowed(): boolean {
+  return billingSubscriptionsEnabled();
 }

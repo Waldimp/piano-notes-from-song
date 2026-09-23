@@ -58,9 +58,11 @@ export async function GET(request: Request) {
     })),
     subscription_lifecycle: {
       enabled_flag: billingSubscriptionsEnabled(),
-      credit_grant_supported: false,
+      credit_grant_supported: true,
       individual_cancel_supported: false,
-      status: "partially_ready",
+      status: billingSubscriptionsEnabled() ? "ready_flag_off_cancel_limited" : "architecture_ready_flag_off",
+      webhook_correlation: "IdSuscripcion",
+      reconciliation: "daily_secondary_no_auto_grant",
     },
     usage,
     purchases: purchases ?? [],

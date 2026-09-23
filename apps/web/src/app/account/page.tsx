@@ -7,6 +7,7 @@ import AppFooter from "@/components/AppFooter";
 import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/components/AuthGate";
 import { type UsageInfo } from "@/components/UsageBanner";
+import { subscriptionStatusDisplayEs } from "@/lib/billing/wompiSubscriptionStatus";
 import { supabase } from "@/lib/supabase";
 
 type SubRow = {
@@ -30,19 +31,6 @@ function planLabel(code: string): string {
       return "Plus";
     default:
       return code;
-  }
-}
-
-function subStatusLabel(status: string): string {
-  switch (status) {
-    case "active":
-      return "Activa";
-    case "past_due":
-      return "Pago pendiente";
-    case "canceled":
-      return "Cancelada";
-    default:
-      return status;
   }
 }
 
@@ -85,7 +73,13 @@ export default function AccountPage() {
     })();
   }, []);
 
-  const activeSub = subs.find((s) => s.status === "active" || s.status === "past_due");
+  const activeSub = subs.find(
+    (s) =>
+      s.status === "active" ||
+      s.status === "past_due" ||
+      s.status === "suspended" ||
+      s.status === "pending",
+  );
 
   const durationLabel =
     usage != null
@@ -139,8 +133,8 @@ export default function AccountPage() {
         </p>
         {activeSub ? (
           <ul className="account-list">
-            <li>Estado: {subStatusLabel(activeSub.status)}</li>
-            <li>Producto: {activeSub.product_code}</li>
+            <li>Estado: {subscriptionStatusDisplayEs(activeSub.status)}</li>
+            <li>Producto: {activeSub.product_code === "practice" ? "Practice" : activeSub.product_code === "plus" ? "Plus" : activeSub.product_code}</li>
             <li>
               Periodo actual:{" "}
               {activeSub.current_period_starts_at
@@ -151,13 +145,19 @@ export default function AccountPage() {
                 ? new Date(activeSub.current_period_ends_at).toLocaleDateString()
                 : "—"}
             </li>
+            {activeSub.next_billing_at && (
+              <li>
+                Próximo cobro (estimado):{" "}
+                {new Date(activeSub.next_billing_at).toLocaleDateString()}
+              </li>
+            )}
           </ul>
         ) : (
           <p>No tienes suscripción mensual activa.</p>
         )}
         <p className="subtitle">
-          Para cancelar o gestionar suscripciones cuando estén disponibles, contáctanos desde el
-          pie de página.
+          Cancelación individual no está disponible en Wompi. Contáctanos desde el pie de página
+          si necesitas ayuda. Manage/Cancel permanece deshabilitado.
         </p>
         <Link className="btn small" href="/pricing">
           Ver precios
