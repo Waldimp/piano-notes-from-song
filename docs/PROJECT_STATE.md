@@ -8,7 +8,7 @@ Actualizado: 2026-09-23
 
 ### Estado operativo
 
-- Migrations 0002–0014 en producción; **0015** (status/reconcile/dedicated_enlace) lista para aplicar.
+- Migrations 0002–0014 en producción; **0015** + **0016** listas para aplicar (0016: period_key cycle + grant race).
 - Mini Pack sandbox (`BILLING_ENABLED=true`, `WOMPI_EXPECT_PRODUCTIVE=false`).
 - Practice/Plus: código settlement listo; UI Coming soon; `BILLING_SUBSCRIPTIONS_ENABLED=false`.
 - Cron: `/api/billing/reconcile-subscriptions` diario (snapshot only).

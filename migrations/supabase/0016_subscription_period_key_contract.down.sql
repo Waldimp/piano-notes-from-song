@@ -1,0 +1,3 @@
+-- Down 0016: restore 0013 grant function body is not automated.
+-- Prefer re-apply 0013 function definition manually if rollback required.
+-- COMMENT changes are non-destructive.

@@ -82,14 +82,71 @@ describe("IdSuscripcion extraction", () => {
   });
 });
 
-describe("period keys", () => {
-  it("includes transaction id for idempotency", () => {
+describe("period keys (monthly cycle, not transaction-scoped)", () => {
+  it("does not embed transaction id", () => {
     const key = buildSubscriptionPeriodKey({
       externalTransactionId: "tx-abc",
       transactionTimestamp: "2026-09-21T18:00:00-06:00",
+      diaPago: 21,
     });
-    expect(key).toContain("tx-abc");
-    expect(key).toMatch(/^\d{4}-\d{2}-\d{2}:tx-abc$/);
+    expect(key).toBe("cycle:2026-09");
+    expect(key).not.toContain("tx-abc");
+  });
+
+  it("two txs in the same billing cycle share one period key", () => {
+    const a = buildSubscriptionPeriodKey({
+      transactionTimestamp: "2026-09-21T10:00:00-06:00",
+      diaPago: 21,
+      externalTransactionId: "tx-1",
+    });
+    const b = buildSubscriptionPeriodKey({
+      transactionTimestamp: "2026-09-21T22:00:00-06:00",
+      diaPago: 21,
+      externalTransactionId: "tx-2",
+    });
+    expect(a).toBe(b);
+    expect(a).toBe("cycle:2026-09");
+  });
+
+  it("retry day after diaPago stays in the same cycle", () => {
+    expect(
+      buildSubscriptionPeriodKey({
+        transactionTimestamp: "2026-09-22T12:00:00-06:00",
+        diaPago: 21,
+      })
+    ).toBe("cycle:2026-09");
+  });
+
+  it("diaPago=31 retry on day 1 maps to previous month cycle", () => {
+    expect(
+      buildSubscriptionPeriodKey({
+        transactionTimestamp: "2026-10-01T12:00:00-06:00",
+        diaPago: 31,
+      })
+    ).toBe("cycle:2026-09");
+  });
+
+  it("next calendar month with diaPago yields a new cycle", () => {
+    const sep = buildSubscriptionPeriodKey({
+      transactionTimestamp: "2026-09-21T12:00:00-06:00",
+      diaPago: 21,
+    });
+    const oct = buildSubscriptionPeriodKey({
+      transactionTimestamp: "2026-10-21T12:00:00-06:00",
+      diaPago: 21,
+    });
+    expect(sep).toBe("cycle:2026-09");
+    expect(oct).toBe("cycle:2026-10");
+    expect(sep).not.toBe(oct);
+  });
+
+  it("without diaPago falls back to calendar YYYY-MM (never invents diaPago)", () => {
+    expect(
+      buildSubscriptionPeriodKey({
+        transactionTimestamp: "2026-09-05T12:00:00-06:00",
+        diaPago: null,
+      })
+    ).toBe("cycle:2026-09");
   });
 
   it("periodDayInElSalvador is YYYY-MM-DD", () => {
@@ -142,6 +199,39 @@ describe("reconciliation never grants from pagosRealizados alone", () => {
     );
     const ev = result.events.find((e) => e.type === "estado_changed");
     expect(ev?.detail.label).toBe("suspended");
+  });
+
+  it("reconciler source never calls grant RPC", () => {
+    const reconcile = readWeb("src/lib/billing/runSubscriptionReconciliation.ts");
+    expect(reconcile).not.toContain("grant_subscription_period_credits");
+    expect(reconcile).not.toContain("processVerifiedSubscriptionPayment");
+    expect(reconcile).toContain("credit_grant_allowed: false");
+  });
+});
+
+describe("DB idempotency barriers in migrations", () => {
+  it("0013 keeps unique period + unique transaction", () => {
+    const repo = resolve(root, "../..");
+    const sql = readFileSync(
+      resolve(repo, "migrations/supabase/0013_wompi_subscriptions.sql"),
+      "utf8"
+    );
+    expect(sql).toContain("unique (subscription_id, period_key)");
+    expect(sql).toContain("unique (provider, external_transaction_id)");
+    expect(sql).toContain("for update");
+  });
+
+  it("0016 documents cycle period_key and race-safe already_granted", () => {
+    const repo = resolve(root, "../..");
+    const sql = readFileSync(
+      resolve(repo, "migrations/supabase/0016_subscription_period_key_contract.sql"),
+      "utf8"
+    );
+    expect(sql).toContain("cycle:YYYY-MM");
+    expect(sql).toContain("NOT embed IdTransaccion");
+    expect(sql).toContain("for update");
+    expect(sql).toContain("already_granted");
+    expect(sql).toContain("transaction_already_used");
   });
 });
 

@@ -22,6 +22,7 @@ import { serviceClient } from "@/lib/server/auth";
 export type { SubscriptionWebhookHints } from "./subscriptionPeriod";
 export {
   SUBSCRIPTION_PERIOD_TIMEZONE,
+  buildMonthlyBillingPeriodKey,
   buildSubscriptionPeriodKey,
   extractEnlacePagoId,
   extractIdSuscripcion,
@@ -125,6 +126,10 @@ export async function processVerifiedSubscriptionPayment(opts: {
   const periodKey = buildSubscriptionPeriodKey({
     externalTransactionId: idTransaccion,
     transactionTimestamp: opts.payload.FechaTransaccion,
+    diaPago:
+      sub.wompi_dia_pago == null || Number.isNaN(Number(sub.wompi_dia_pago))
+        ? null
+        : Number(sub.wompi_dia_pago),
   });
 
   const { data: grantResult, error: grantErr } = await sb.rpc(

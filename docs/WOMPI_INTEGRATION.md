@@ -164,6 +164,21 @@ Por tanto: **Manage/Cancel disabled**. No se llama `disableEnlacePagoRecurrente`
 2. Renovación E2E requiere negocio activo + cargo real (sin sandbox)
 3. No hay API documentada para listar transacciones por `IdSuscripcion` → reconciler no puede auto-reparar pagos perdidos sin `IdTransaccion`
 
+### Period key / idempotencia
+
+`period_key` = `cycle:YYYY-MM` (America/El_Salvador), anclado a `wompi_dia_pago` cuando existe.
+**No** incluye `IdTransaccion` (dos txs aprobadas en el mismo ciclo colisionan en
+`unique(subscription_id, period_key)` → un solo grant).
+
+Barreras Postgres (RPC `grant_subscription_period_credits`):
+
+1. `FOR UPDATE` sobre `billing_subscriptions`
+2. `unique(subscription_id, period_key)`
+3. `unique(provider, external_transaction_id)`
+4. `unique(provider, external_event_key)` en `billing_events` (webhook)
+
+Reconciliación diaria **nunca** llama al grant RPC.
+
 ### Feature flags (sin cambiar)
 
 | Flag | Valor |
