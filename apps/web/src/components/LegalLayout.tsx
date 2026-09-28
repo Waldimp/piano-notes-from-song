@@ -15,8 +15,8 @@ export default function LegalLayout({
 }) {
   return (
     <main className="shell narrow">
-      <header className="nav" style={{ position: "static", background: "transparent", border: "none" }}>
-        <div className="nav-inner" style={{ padding: 0 }}>
+      <header className="nav">
+        <div className="nav-inner">
           <Brand href="/landing" />
           <div className="nav-spacer" />
           <Link className="btn small ghost" href="/">

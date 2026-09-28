@@ -163,3 +163,11 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Decisión:** Rediseño visual completo (identidad Pianissimo: ébano cálido + dorado, Fraunces/Manrope, biblioteca de tarjetas con "Abrir tutorial" como acción primaria, pricing comercial, reproductor como pieza central) sin cambiar arquitectura ni backend, y sin secciones técnicas en producción (el panel de cola solo existe en modo local).
 **Motivo:** La UI anterior parecía un MVP generado; para beta cerrada hace falta credibilidad y jerarquía visual.
 **Estado:** Vigente. Correo de producción con Resend queda preparado pero pendiente de dominio (DEC pendiente de cierre en `AUTH_EMAIL_RESEND.md`).
+
+## DEC-022
+
+**Fecha:** 2026-09-27
+**Decisión:** Segunda pasada de diseño con concepto "escenario": el reproductor real (`drawFrame` con una transcripción real de 34 s) es el hero de la landing y del login; paleta ébano/marfil/champán/burdeos/azul; tipografías Instrument Serif (display) + DM Sans (cuerpo); biblioteca como estantería con portadas generativas deterministas (`Artwork`, sin IA externa); pricing editorial con Mini Pack como pieza principal; reproductor con chrome superpuesto que se oculta en pantalla completa; motion por CSS + IntersectionObserver (`Reveal`) con tokens `--t-fast/--t-normal/--t-slow` y respeto a `prefers-reduced-motion`. Backend, billing, créditos y lógica de preview sin cambios.
+**Motivo:** La primera pasada (DEC-021) seguía pareciendo una plantilla SaaS; el producto se entiende mejor viéndolo tocar que leyendo tarjetas de features.
+**Alternativas:** vídeo/GIF del producto en el hero (más pesado, no interactivo, se desincroniza del renderer real); librería de animación (bundle innecesario para lo que hace CSS).
+**Estado:** Vigente. Capturas en `docs/qa/2026-09-27/v2-*.png`.

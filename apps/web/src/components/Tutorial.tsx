@@ -121,6 +121,7 @@ export default function Tutorial({ id }: { id: string }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const [unlockBusy, setUnlockBusy] = useState(false);
   const [unlockMsg, setUnlockMsg] = useState<string | null>(null);
+  const [idle, setIdle] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -291,6 +292,28 @@ export default function Tutorial({ id }: { id: string }) {
     setSpeed(rate);
   }, []);
 
+  // Escenario limpio: en pantalla completa y reproduciendo, el chrome se
+  // esconde tras unos segundos sin mover el ratón o tocar la pantalla.
+  useEffect(() => {
+    if (!isFullscreen || !isPlaying) {
+      setIdle(false);
+      return;
+    }
+    let timer: number | undefined;
+    const arm = () => {
+      setIdle(false);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setIdle(true), 2800);
+    };
+    arm();
+    const events: Array<keyof WindowEventMap> = ["mousemove", "pointerdown", "touchstart", "keydown"];
+    for (const ev of events) window.addEventListener(ev, arm, { passive: true });
+    return () => {
+      window.clearTimeout(timer);
+      for (const ev of events) window.removeEventListener(ev, arm);
+    };
+  }, [isFullscreen, isPlaying]);
+
   const toggleFullscreen = useCallback(async () => {
     const root = rootRef.current;
     if (!root) return;
@@ -430,8 +453,8 @@ export default function Tutorial({ id }: { id: string }) {
   const title = song?.title ?? "Tutorial";
 
   return (
-    <div className="player" ref={rootRef}>
-      <div className="player-bar">
+    <div className={`player${idle ? " idle" : ""}`} ref={rootRef}>
+      <div className="player-top">
         <Link href="/" className="btn icon ghost" aria-label="Volver a tus canciones" title="Tus canciones">
           ←
         </Link>
@@ -489,7 +512,7 @@ export default function Tutorial({ id }: { id: string }) {
         </div>
       </div>
 
-      <div className="player-controls">
+      <div className="player-dock">
         <div className="transport">
           <button
             className="play-btn"
@@ -609,7 +632,7 @@ export default function Tutorial({ id }: { id: string }) {
             ))}
           </div>
           <span className="hint">
-            Espacio: play/pausa · ←/→: ±{SEEK_STEP_SECONDS}s{hasHands ? " · verde ≈ derecha, azul ≈ izquierda" : ""} ·{" "}
+            Espacio: play/pausa · ←/→: ±{SEEK_STEP_SECONDS}s{hasHands ? " · dorado ≈ derecha, azul ≈ izquierda" : ""} ·{" "}
             {transcription.notes.length} notas
           </span>
         </div>

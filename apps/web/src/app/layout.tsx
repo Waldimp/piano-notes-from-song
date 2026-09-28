@@ -1,23 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Manrope } from "next/font/google";
+import { DM_Sans, Instrument_Serif } from "next/font/google";
 import type { ReactNode } from "react";
 
 import "./globals.css";
 import AuthGate from "@/components/AuthGate";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_OG, SITE_TITLE } from "@/lib/site";
 
-const manrope = Manrope({
+const dmSans = DM_Sans({
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
-  variable: "--font-manrope",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-dm-sans",
   display: "swap",
 });
 
-const fraunces = Fraunces({
+const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["400"],
   style: ["normal", "italic"],
-  variable: "--font-fraunces",
+  variable: "--font-instrument-serif",
   display: "swap",
 });
 
@@ -40,12 +40,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#100d0b",
+  themeColor: "#0b0a0c",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es" className={`${manrope.variable} ${fraunces.variable}`}>
+    <html lang="es" className={`${dmSans.variable} ${instrumentSerif.variable}`}>
       <body>
         <AuthGate>{children}</AuthGate>
       </body>

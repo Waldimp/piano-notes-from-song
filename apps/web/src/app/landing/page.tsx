@@ -2,28 +2,31 @@ import Link from "next/link";
 
 import AppFooter from "@/components/AppFooter";
 import Brand from "@/components/Brand";
+import HeroDemo from "@/components/HeroDemo";
+import LandingDemo from "@/components/LandingDemo";
+import Reveal from "@/components/Reveal";
 import { BILLING_PRODUCTS } from "@/lib/billing/catalog";
 import { FREE_CREDITS, FREE_PREVIEW_SECONDS } from "@/lib/beta/preview";
 
-const NOTES: Array<{ left: number; h: number; d: number; delay: number; l?: boolean }> = [
-  { left: 8, h: 22, d: 6.5, delay: 0 },
-  { left: 22, h: 12, d: 6.5, delay: 1.2, l: true },
-  { left: 36, h: 30, d: 6.5, delay: 2.4 },
-  { left: 50, h: 16, d: 6.5, delay: 0.6 },
-  { left: 64, h: 26, d: 6.5, delay: 3.1, l: true },
-  { left: 78, h: 14, d: 6.5, delay: 1.9 },
-  { left: 29, h: 10, d: 6.5, delay: 4.4 },
-  { left: 71, h: 20, d: 6.5, delay: 5.2, l: true },
+const WAVE = [30, 55, 80, 45, 70, 95, 60, 35, 75, 50, 85, 40];
+const FALL = [
+  { x: 6, l: false },
+  { x: 22, l: true },
+  { x: 38, l: false },
+  { x: 54, l: false },
+  { x: 70, l: true },
+  { x: 86, l: false },
 ];
-
-const KEYS = "wbwbwwbwbwbwww";
 
 export default function LandingPage() {
   const mini = BILLING_PRODUCTS.mini_pack;
+  const practice = BILLING_PRODUCTS.practice;
+  const plus = BILLING_PRODUCTS.plus;
+
   return (
-    <main className="shell">
-      <header className="nav" style={{ position: "static", background: "transparent", border: "none" }}>
-        <div className="nav-inner" style={{ padding: 0 }}>
+    <main className="landing">
+      <header className="nav floating">
+        <div className="nav-inner">
           <Brand href="/landing" />
           <div className="nav-spacer" />
           <Link className="btn ghost small" href="/pricing">
@@ -35,169 +38,250 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Tutoriales de piano con IA</p>
-          <h1>
-            Sube una canción. <em>Aprende a tocarla.</em>
+      {/* HERO: el producto tocando en vivo detrás del texto */}
+      <section className="hero" aria-label="Pianissimo">
+        <HeroDemo speed={0.8} startAt={3} minWidth={1100} />
+        <div className="hero-shade" aria-hidden="true" />
+        <div className="hero-content">
+          <p className="eyebrow">Tutoriales de piano a partir de cualquier grabación</p>
+          <h1 className="hero-title">
+            Tu canción. <em>Tu piano.</em> A tu ritmo.
           </h1>
           <p className="hero-lead">
-            Pianissimo escucha un audio de piano, detecta cada nota y la convierte en un tutorial de notas
-            que caen sobre un teclado de 88 teclas. Baja la velocidad, repite en loop y practica a tu ritmo.
+            Sube un audio de piano y Pianissimo lo convierte en notas que caen sobre un teclado real, listas para
+            practicar despacio, en loop y mano por mano.
           </p>
           <div className="hero-cta">
             <Link className="btn primary lg" href="/login">
               Probar gratis
             </Link>
-            <Link className="btn lg" href="/pricing">
-              Ver planes
+            <Link className="btn lg" href="#demo">
+              Ver cómo funciona
             </Link>
           </div>
           <p className="hero-fine">
-            Gratis: {FREE_CREDITS} tutoriales de vista previa ({FREE_PREVIEW_SECONDS} s cada uno). Sin tarjeta.
+            {FREE_CREDITS} vistas previas de {FREE_PREVIEW_SECONDS} s gratis · sin tarjeta
           </p>
         </div>
-        <div className="mini-stage" aria-hidden="true">
-          <div className="mini-notes">
-            {NOTES.map((n, i) => (
-              <span
-                key={i}
-                className={`mini-note${n.l ? " l" : ""}`}
-                style={{
-                  left: `${n.left}%`,
-                  ["--h" as string]: `${n.h}%`,
-                  ["--d" as string]: `${n.d}s`,
-                  ["--delay" as string]: `${n.delay}s`,
-                }}
-              />
-            ))}
-          </div>
-          <div className="mini-keys">
-            {KEYS.split("").map((k, i) => (
-              <span
-                key={i}
-                className={`mini-key${k === "b" ? " black" : ""}${i === 2 ? " hit" : ""}${i === 9 ? " black hit-b" : ""}`}
-              />
-            ))}
+        <div className="hero-scroll" aria-hidden="true">
+          <i />
+          <span>Desliza</span>
+        </div>
+      </section>
+
+      {/* DEMO INTERACTIVA */}
+      <section className="section" id="demo" aria-labelledby="demo-title">
+        <div className="section-inner">
+          <Reveal className="section-head">
+            <p className="eyebrow">Así se practica</p>
+            <h2 id="demo-title">Tócalo con los controles de verdad</h2>
+            <p>Baja la velocidad, repite un pasaje o quédate con una mano. Los mismos controles que tendrás en tu tutorial.</p>
+          </Reveal>
+          <Reveal delay={120}>
+            <LandingDemo />
+          </Reveal>
+        </div>
+      </section>
+
+      {/* TRES MOMENTOS */}
+      <section className="section" aria-labelledby="how-title">
+        <div className="section-inner">
+          <Reveal className="section-head">
+            <p className="eyebrow">De un audio a tus manos</p>
+            <h2 id="how-title">Tres momentos, un minuto</h2>
+          </Reveal>
+          <div className="moments">
+            <Reveal className="moment" delay={0}>
+              <div className="motif motif-wave" aria-hidden="true">
+                {WAVE.map((h, i) => (
+                  <i key={i} style={{ ["--h" as string]: h, ["--i" as string]: i }} />
+                ))}
+              </div>
+              <span className="n">01 · Sube</span>
+              <h3>Una grabación de piano</h3>
+              <p>MP3, WAV, M4A, FLAC u OGG. Un cover que te guste, una clase, tu propia toma.</p>
+            </Reveal>
+            <Reveal className="moment" delay={120}>
+              <div className="motif motif-detect" aria-hidden="true">
+                {Array.from({ length: 48 }, (_, i) => (
+                  <i key={i} style={{ ["--i" as string]: (i * 7) % 48 }} />
+                ))}
+              </div>
+              <span className="n">02 · Escuchamos</span>
+              <h3>La IA detecta cada nota</h3>
+              <p>Altura, duración, intensidad y pedal, con un modelo entrenado solo en piano.</p>
+            </Reveal>
+            <Reveal className="moment" delay={240}>
+              <div className="motif motif-fall" aria-hidden="true">
+                {FALL.map((n, i) => (
+                  <i key={i} className={n.l ? "l" : ""} style={{ ["--x" as string]: n.x, ["--i" as string]: i }} />
+                ))}
+              </div>
+              <span className="n">03 · Practicas</span>
+              <h3>Notas que caen sobre 88 teclas</h3>
+              <p>Ves qué tecla, cuándo y cuánto. Y el tutorial espera tu ritmo, no al revés.</p>
+            </Reveal>
           </div>
         </div>
       </section>
 
-      <section className="section" aria-labelledby="how">
-        <div className="section-head">
-          <p className="eyebrow">Cómo funciona</p>
-          <h2 id="how">De un audio a un tutorial en un minuto</h2>
-        </div>
-        <div className="steps">
-          <div className="card step">
-            <span className="step-n">1</span>
-            <h3>Sube tu grabación</h3>
-            <p>MP3, WAV, M4A, FLAC u OGG. Sirve una grabación de estudio o un cover que te guste.</p>
-          </div>
-          <div className="card step">
-            <span className="step-n">2</span>
-            <h3>La IA transcribe</h3>
-            <p>Detectamos cada nota, su duración, la velocidad y el pedal con un modelo especializado en piano.</p>
-          </div>
-          <div className="card step">
-            <span className="step-n">3</span>
-            <h3>Practica a tu ritmo</h3>
-            <p>Notas que caen, manos separadas por color, velocidad 0.5x–1.25x y loop A/B para las partes difíciles.</p>
+      {/* FEATURE STORYTELLING */}
+      <section className="section" aria-labelledby="features-title">
+        <div className="section-inner">
+          <Reveal className="section-head">
+            <p className="eyebrow">Hecho para practicar</p>
+            <h2 id="features-title">Todo lo que necesita una sesión de estudio</h2>
+          </Reveal>
+          <div className="features">
+            <Reveal className="feature">
+              <div>
+                <p className="eyebrow">Loop A · B</p>
+                <h3>Repite el pasaje difícil hasta que salga</h3>
+                <p>
+                  Marca un inicio y un final y el tutorial vuelve solo. La banda dorada te muestra exactamente qué
+                  compases estás repitiendo.
+                </p>
+              </div>
+              <div className="feature-visual">
+                <HeroDemo speed={0.7} loop={[8, 14]} startAt={8} minWidth={640} />
+              </div>
+            </Reveal>
+
+            <Reveal className="feature flip">
+              <div>
+                <p className="eyebrow">Velocidad</p>
+                <h3>Despacio primero, a tempo después</h3>
+                <p>0.5x, 0.75x, 1x y 1.25x sin que cambie el tono. El audio original sigue siendo el reloj.</p>
+              </div>
+              <div className="feature-visual">
+                <div className="metro" aria-hidden="true">
+                  <div className="pend" style={{ ["--period" as string]: "1.6s" }} />
+                  <div className="speeds">
+                    <span className="speed-tag">0.5x</span>
+                    <span className="speed-tag on">0.75x</span>
+                    <span className="speed-tag">1x</span>
+                    <span className="speed-tag">1.25x</span>
+                  </div>
+                </div>
+              </div>
+            </Reveal>
+
+            <Reveal className="feature">
+              <div>
+                <p className="eyebrow">Manos</p>
+                <h3>Dorado para la derecha, azul para la izquierda</h3>
+                <p>Filtra una mano para estudiarla sola y ve cómo encaja con la otra. Separación aproximada, pensada para practicar.</p>
+              </div>
+              <div className="feature-visual">
+                <HeroDemo speed={0.7} handFilter="left" startAt={12} minWidth={640} />
+              </div>
+            </Reveal>
+
+            <Reveal className="feature flip">
+              <div>
+                <p className="eyebrow">Vista previa gratis</p>
+                <h3>Los primeros {FREE_PREVIEW_SECONDS} segundos, sin pagar</h3>
+                <p>
+                  Sube cualquier canción con el plan gratis: procesamos el primer minuto para que compruebes la
+                  calidad. Si te convence, desbloqueas la canción completa con un crédito.
+                </p>
+              </div>
+              <div className="feature-visual">
+                <div className="timeline" aria-hidden="true">
+                  <div className="played" />
+                  <div className="locked" />
+                </div>
+                <div className="timeline-labels" aria-hidden="true">
+                  <span>0:00</span>
+                  <span className="timeline-mark">1:00 · vista previa</span>
+                  <span>3:14</span>
+                </div>
+                <p className="muted small">La canción completa se desbloquea con un Mini Pack o un plan mensual.</p>
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>
 
-      <section className="section" aria-labelledby="plans">
-        <div className="section-head">
-          <p className="eyebrow">Planes</p>
-          <h2 id="plans">Empieza gratis, paga solo por lo que practicas</h2>
-          <p>Cada tutorial completo consume un crédito. Reproducir los que ya tienes es siempre gratis.</p>
+      {/* PRICING RESUMIDO */}
+      <section className="section" aria-labelledby="plans-title">
+        <div className="section-inner">
+          <Reveal className="section-head">
+            <p className="eyebrow">Precios</p>
+            <h2 id="plans-title">Paga por canción, no por mes… salvo que quieras</h2>
+            <p>Un tutorial completo consume un crédito. Reproducir los que ya tienes es gratis, siempre.</p>
+          </Reveal>
+          <Reveal className="pricing-editorial" delay={100}>
+            <div className="price-hero">
+              <p className="eyebrow">Mini Pack · pago único</p>
+              <p className="big">
+                ${mini.priceUsd.toFixed(2)} <small>USD</small>
+              </p>
+              <p className="lead">{mini.credits} canciones completas, hasta 10 minutos cada una.</p>
+              <ul>
+                <li>Los créditos no caducan</li>
+                <li>Desbloquea tus vistas previas</li>
+                <li>Pago con tarjeta vía Wompi</li>
+              </ul>
+              <Link className="btn primary lg" href="/pricing">
+                Ver Mini Pack
+              </Link>
+            </div>
+            <div className="price-side">
+              <div className="price-row">
+                <div>
+                  <div className="name">Gratis</div>
+                  <div className="desc">
+                    {FREE_CREDITS} vistas previas × {FREE_PREVIEW_SECONDS} s
+                  </div>
+                </div>
+                <div className="amount">$0</div>
+              </div>
+              <div className="price-row soon">
+                <div>
+                  <div className="name">{practice.displayName}</div>
+                  <div className="desc">{practice.credits} canciones al mes · próximamente</div>
+                </div>
+                <div className="amount">
+                  ${practice.priceUsd.toFixed(2)}
+                  <small> /mes</small>
+                </div>
+              </div>
+              <div className="price-row soon">
+                <div>
+                  <div className="name">{plus.displayName}</div>
+                  <div className="desc">{plus.credits} canciones al mes · próximamente</div>
+                </div>
+                <div className="amount">
+                  ${plus.priceUsd.toFixed(2)}
+                  <small> /mes</small>
+                </div>
+              </div>
+              <p className="price-foot">Precios en dólares. Sin cargos ocultos.</p>
+            </div>
+          </Reveal>
         </div>
-        <div className="plans">
-          <article className="card plan">
-            <p className="eyebrow">Gratis</p>
-            <h3>Prueba</h3>
-            <p className="plan-price">$0</p>
-            <p className="plan-tag">Para conocer Pianissimo</p>
-            <ul>
-              <li>{FREE_CREDITS} tutoriales de vista previa</li>
-              <li>Primeros {FREE_PREVIEW_SECONDS} s de cualquier canción</li>
-              <li>Todas las herramientas de práctica</li>
-            </ul>
-            <Link className="btn" href="/login">
-              Crear cuenta
+      </section>
+
+      {/* CTA FINAL */}
+      <section className="cta-final" aria-labelledby="cta-title">
+        <Reveal>
+          <p className="eyebrow">Empieza hoy</p>
+          <h2 id="cta-title">La próxima canción que aprendas empieza con un audio.</h2>
+          <div className="row">
+            <Link className="btn primary lg" href="/login">
+              Crear cuenta gratis
             </Link>
-          </article>
-          <article className="card plan featured">
-            <span className="plan-badge pill gold">Más popular</span>
-            <p className="eyebrow">Pago único</p>
-            <h3>{mini.displayName}</h3>
-            <p className="plan-price">
-              ${mini.priceUsd.toFixed(2)} <small>una vez</small>
-            </p>
-            <p className="plan-tag">{mini.credits} canciones completas</p>
-            <ul>
-              <li>{mini.credits} tutoriales completos</li>
-              <li>Hasta 10 minutos por canción</li>
-              <li>Los créditos no caducan</li>
-            </ul>
-            <Link className="btn primary" href="/pricing">
-              Ver Mini Pack
+            <Link className="btn lg" href="/pricing">
+              Ver precios
             </Link>
-          </article>
-          <article className="card plan">
-            <p className="eyebrow">Mensual · pronto</p>
-            <h3>Practice y Plus</h3>
-            <p className="plan-price">
-              desde ${BILLING_PRODUCTS.practice.priceUsd.toFixed(2)} <small>/ mes</small>
-            </p>
-            <p className="plan-tag">Para quien practica cada semana</p>
-            <ul>
-              <li>20 o 50 tutoriales al mes</li>
-              <li>Hasta 10 minutos por canción</li>
-              <li className="dim">Disponible próximamente</li>
-            </ul>
-            <Link className="btn" href="/pricing">
-              Detalles
-            </Link>
-          </article>
-        </div>
+          </div>
+        </Reveal>
       </section>
 
-      <section className="section" aria-labelledby="faq">
-        <div className="section-head">
-          <p className="eyebrow">Preguntas frecuentes</p>
-          <h2 id="faq">Lo que suelen preguntarnos</h2>
-        </div>
-        <div className="faq">
-          <details>
-            <summary>¿Qué tan precisa es la transcripción?</summary>
-            <p>
-              Muy buena con grabaciones limpias de piano solo. Con mucho ruido, otros instrumentos o pedal
-              constante puede haber notas de más o de menos; el tutorial sigue siendo una guía útil, no una
-              partitura oficial.
-            </p>
-          </details>
-          <details>
-            <summary>¿Qué es la vista previa gratuita?</summary>
-            <p>
-              Con el plan gratis procesamos solo los primeros {FREE_PREVIEW_SECONDS} segundos de la canción que
-              subas, así compruebas la calidad antes de pagar. Con un Mini Pack puedes desbloquear la canción
-              completa.
-            </p>
-          </details>
-          <details>
-            <summary>¿Funciona en el celular?</summary>
-            <p>Sí. La web funciona en iPhone, Android y tablet; el tutorial se ve mejor con el teléfono en horizontal.</p>
-          </details>
-          <details>
-            <summary>¿Puedo subir cualquier canción?</summary>
-            <p>Solo audio del que tengas derecho a procesar. Pianissimo no redistribuye música ni descarga de plataformas.</p>
-          </details>
-        </div>
-      </section>
-
-      <AppFooter />
+      <div className="section-inner">
+        <AppFooter />
+      </div>
     </main>
   );
 }

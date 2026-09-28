@@ -7,6 +7,7 @@ import AppFooter from "@/components/AppFooter";
 import AppHeader from "@/components/AppHeader";
 import Brand from "@/components/Brand";
 import { useAuth } from "@/components/AuthGate";
+import Reveal from "@/components/Reveal";
 import { BILLING_PRODUCTS } from "@/lib/billing/catalog";
 import { FREE_CREDITS, FREE_PREVIEW_SECONDS } from "@/lib/beta/preview";
 import { mapBillingCheckoutError } from "@/lib/userMessages";
@@ -77,8 +78,8 @@ export default function PricingPage() {
       {email ? (
         <AppHeader />
       ) : (
-        <header className="nav" style={{ position: "static", background: "transparent", border: "none" }}>
-          <div className="nav-inner" style={{ padding: 0 }}>
+        <header className="nav">
+          <div className="nav-inner">
             <Brand href="/landing" />
             <div className="nav-spacer" />
             <Link className="btn small" href="/login">
@@ -88,59 +89,41 @@ export default function PricingPage() {
         </header>
       )}
 
-      <section className="section-head" style={{ margin: "2.5rem auto 0", textAlign: "center", maxWidth: 640 }}>
+      <section className="section-head" style={{ margin: "3rem auto 0", textAlign: "center", maxWidth: 680 }}>
         <p className="eyebrow">Precios</p>
-        <h1>Paga solo por las canciones que aprendes</h1>
+        <h1>Paga por canción, no por mes… salvo que quieras</h1>
         <p>
-          Cada tutorial completo consume un crédito. Reproducir, ralentizar y repetir en loop los que ya tienes
-          es gratis, siempre.
+          Cada tutorial completo consume un crédito. Reproducir, ralentizar y repetir en loop los que ya tienes es
+          gratis, siempre.
         </p>
       </section>
 
       {msg && (
-        <div className={`notice${msg.kind === "info" ? " info" : ""}`} role="alert" style={{ marginTop: "1.25rem" }}>
+        <div className={`notice${msg.kind === "info" ? " info" : ""}`} role="alert" style={{ marginTop: "1.5rem" }}>
           {msg.text}
         </div>
       )}
       {sandboxMode && (
-        <p className="notice info" role="status" style={{ marginTop: "1.25rem" }}>
+        <p className="notice info" role="status" style={{ marginTop: "1.5rem", textAlign: "center" }}>
           Los pagos están en modo de prueba: no se realizará ningún cobro real.
         </p>
       )}
 
-      <div className="plans" style={{ marginTop: "2rem" }}>
-        <article className="card plan">
-          <p className="eyebrow">Gratis</p>
-          <h3>Prueba</h3>
-          <p className="plan-price">$0</p>
-          <p className="plan-tag">Para conocer Pianissimo</p>
+      <Reveal className="pricing-editorial">
+        <article className="price-hero" aria-labelledby="mini-title">
+          <p className="eyebrow">Mini Pack · pago único</p>
+          <h2 id="mini-title" className="big">
+            ${mini.priceUsd.toFixed(2)} <small>USD, una vez</small>
+          </h2>
+          <p className="lead">{mini.credits} canciones completas, hasta 10 minutos cada una.</p>
           <ul>
-            <li>{FREE_CREDITS} tutoriales de vista previa</li>
-            <li>Primeros {FREE_PREVIEW_SECONDS} s de cualquier canción</li>
-            <li>Velocidad, loop A/B y manos por color</li>
-          </ul>
-          <Link className="btn" href={email ? "/" : "/login"}>
-            {email ? "Subir una canción" : "Crear cuenta gratis"}
-          </Link>
-        </article>
-
-        <article className="card plan featured">
-          <span className="plan-badge pill gold">Más popular</span>
-          <p className="eyebrow">Pago único</p>
-          <h3>{mini.displayName}</h3>
-          <p className="plan-price">
-            ${mini.priceUsd.toFixed(2)} <small>USD · una vez</small>
-          </p>
-          <p className="plan-tag">{mini.credits} canciones completas</p>
-          <ul>
-            <li>{mini.credits} tutoriales completos</li>
-            <li>Hasta 10 minutos por canción</li>
             <li>Los créditos no caducan</li>
-            <li>Desbloquea tus vistas previas</li>
+            <li>Desbloquea las vistas previas que ya tienes</li>
+            <li>Velocidad, loop A/B y manos por color en todas</li>
           </ul>
           {email ? (
             <button
-              className="btn primary"
+              className="btn primary lg"
               type="button"
               disabled={busy !== null || !billingEnabled}
               onClick={() => void startCheckout("mini_pack")}
@@ -148,7 +131,7 @@ export default function PricingPage() {
               {busy === "mini_pack" ? "Abriendo pago…" : `Comprar por $${mini.priceUsd.toFixed(2)}`}
             </button>
           ) : (
-            <Link className="btn primary" href="/login">
+            <Link className="btn primary lg" href="/login">
               Entrar para comprar
             </Link>
           )}
@@ -156,49 +139,56 @@ export default function PricingPage() {
           <p className="plan-foot">Pago seguro con tarjeta a través de Wompi. No guardamos datos de tu tarjeta.</p>
         </article>
 
-        <article className="card plan">
-          <p className="eyebrow">Mensual</p>
-          <h3>{practice.displayName}</h3>
-          <p className="plan-price">
-            ${practice.priceUsd.toFixed(2)} <small>/ mes</small>
-          </p>
-          <p className="plan-tag">{practice.credits} canciones al mes</p>
-          <ul>
-            <li>{practice.credits} tutoriales cada mes</li>
-            <li>Hasta 10 minutos por canción</li>
-            <li className="dim">Disponible próximamente</li>
-          </ul>
-          <button className="btn" type="button" disabled aria-disabled="true">
-            Próximamente
-          </button>
-        </article>
+        <div className="price-side">
+          <div className="price-row">
+            <div>
+              <div className="name">Gratis</div>
+              <div className="desc">
+                {FREE_CREDITS} vistas previas · los primeros {FREE_PREVIEW_SECONDS} s de cualquier canción
+              </div>
+            </div>
+            <div className="amount">
+              $0
+              <div>
+                <Link className="btn xs" href={email ? "/" : "/login"}>
+                  {email ? "Subir canción" : "Crear cuenta"}
+                </Link>
+              </div>
+            </div>
+          </div>
+          <div className="price-row soon">
+            <div>
+              <div className="name">{practice.displayName}</div>
+              <div className="desc">{practice.credits} canciones cada mes · Próximamente</div>
+            </div>
+            <div className="amount">
+              ${practice.priceUsd.toFixed(2)}
+              <small> /mes</small>
+            </div>
+          </div>
+          <div className="price-row soon">
+            <div>
+              <div className="name">{plus.displayName}</div>
+              <div className="desc">{plus.credits} canciones cada mes · Próximamente</div>
+            </div>
+            <div className="amount">
+              ${plus.priceUsd.toFixed(2)}
+              <small> /mes</small>
+            </div>
+          </div>
+          <p className="price-foot">Precios en dólares. Hasta 10 minutos por canción en los planes de pago. Sin cargos ocultos.</p>
+        </div>
+      </Reveal>
 
-        <article className="card plan">
-          <p className="eyebrow">Mensual</p>
-          <h3>{plus.displayName}</h3>
-          <p className="plan-price">
-            ${plus.priceUsd.toFixed(2)} <small>/ mes</small>
-          </p>
-          <p className="plan-tag">{plus.credits} canciones al mes</p>
-          <ul>
-            <li>{plus.credits} tutoriales cada mes</li>
-            <li>Hasta 10 minutos por canción</li>
-            <li className="dim">Disponible próximamente</li>
-          </ul>
-          <button className="btn" type="button" disabled aria-disabled="true">
-            Próximamente
-          </button>
-        </article>
-      </div>
-
-      <section className="section" aria-labelledby="pricing-faq">
+      <section className="section" aria-labelledby="pricing-faq" style={{ paddingTop: "4rem" }}>
         <div className="section-head">
+          <p className="eyebrow">Dudas frecuentes</p>
           <h2 id="pricing-faq">Preguntas sobre pagos</h2>
         </div>
         <div className="faq">
           <details>
             <summary>¿Qué pasa con mis vistas previas al comprar?</summary>
-            <p>Siguen en tu biblioteca. Con créditos puedes procesar la canción completa desde la propia tarjeta.</p>
+            <p>Siguen en tu biblioteca. Con créditos puedes procesar la canción completa desde la propia portada.</p>
           </details>
           <details>
             <summary>¿Caducan los créditos del Mini Pack?</summary>

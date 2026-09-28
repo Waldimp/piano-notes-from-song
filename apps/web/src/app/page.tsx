@@ -20,6 +20,11 @@ import { mapCreateRequestError } from "@/lib/userMessages";
 /** Mientras haya canciones en cola, re-despertar al worker como máximo cada 30 s. */
 const REWAKE_INTERVAL_MS = 30_000;
 
+/** Marcas de operador/pruebas en el error de un trabajo: nunca son canciones del usuario. */
+function isOperatorArtifact(error: string | null | undefined): boolean {
+  return /test|e2e|cleanup|manual/i.test(error ?? "");
+}
+
 export default function Home() {
   const data = getDataSource();
   const router = useRouter();
@@ -72,13 +77,13 @@ export default function Home() {
   }, [data.kind, hasPending, hasQueued, reload]);
 
   // Tarjetas de trabajo: en curso, listas sin canción visible aún, y errores recientes
-  // (un fallo de hace días es ruido: el crédito ya se devolvió).
+  // reales (un fallo de hace días o marcado por el operador es ruido: el crédito ya se devolvió).
   const pendingJobs = useMemo(() => {
     const songIds = new Set(items?.map((s) => s.id) ?? []);
     const recent = Date.now() - 48 * 60 * 60 * 1000;
     return jobs.filter((j) => {
       if (j.status === "done") return !(j.transcriptionId && songIds.has(j.transcriptionId));
-      if (j.status === "error") return new Date(j.createdAt).getTime() > recent;
+      if (j.status === "error") return !isOperatorArtifact(j.error) && new Date(j.createdAt).getTime() > recent;
       return true;
     });
   }, [items, jobs]);
@@ -143,11 +148,16 @@ export default function Home() {
 
   return (
     <main className="shell">
-      <AppHeader
-        title="Tus canciones"
-        subtitle={isCloudMode ? "Sube un audio de piano y practícalo con notas que caen." : "Biblioteca local en esta PC"}
-        actions={isCloudMode ? <UsageBanner refreshKey={usageTick} /> : undefined}
-      />
+      <AppHeader />
+
+      <div className="library-hero">
+        <div>
+          <p className="eyebrow">Tu biblioteca</p>
+          <h1>Tus canciones</h1>
+          <p>{isCloudMode ? "Cada canción, lista para practicar despacio, en loop y mano por mano." : "Biblioteca local en esta PC"}</p>
+        </div>
+        {isCloudMode && <UsageBanner refreshKey={usageTick} />}
+      </div>
 
       <UploadBox
         usage={usage}
@@ -172,21 +182,21 @@ export default function Home() {
       )}
 
       {showEmpty && (
-        <div className="empty" style={{ marginTop: "2rem" }}>
-          <h3>Tu biblioteca está vacía</h3>
+        <div className="empty">
+          <h3>Tu biblioteca está en silencio</h3>
           <p>Sube tu primera canción y en un minuto tendrás un tutorial interactivo.</p>
         </div>
       )}
 
       {total > 0 && (
         <>
-          <div className="library-head">
+          <div className="shelf-head">
             <h2>Biblioteca</h2>
             <span className="count">
               {total} {total === 1 ? "canción" : "canciones"}
             </span>
           </div>
-          <ul className="library" aria-label="Tus canciones">
+          <ul className="shelf" aria-label="Tus canciones">
             {pendingJobs.map((j) => (
               <PendingCard key={`job-${j.id}`} job={j} />
             ))}
