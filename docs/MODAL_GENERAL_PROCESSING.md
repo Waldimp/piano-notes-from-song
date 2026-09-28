@@ -68,3 +68,39 @@ solicitudes `queued/processing`, terminales de menos de 24 h y **previews FREE d
 - Sin reintento automático tras fallo (decisión: el usuario vuelve a subir; el crédito se
   devuelve en `fail_request_attempt`).
 - Sin Database Webhook: el wake más rápido tras el navegador es `pg_cron` (≤ 60 s).
+
+## Runbook: "no_eligible_dispatch" con trabajo en cola (receipt atascado)
+
+`acquire_next_modal_dispatch` **no despacha nada** mientras exista cualquier fila de
+`dispatch_outbox` en `leased`, `spawning` o `acknowledged` (exclusión mutua de un solo
+slot). Si una de esas filas pertenece a una request que ya es terminal (`done`/`error`),
+el slot queda tomado para siempre y la cola se congela en silencio: el wake responde
+`{"status":"idle","reason":"no_eligible_dispatch"}` aunque haya `pending`.
+
+Detectado el 2026-09-27: el receipt `8a21c3d2-63ef-4672-b50a-6a266465470d` (request
+`3f35d1e8…`, `long.mp3`, E2E del 2026-09-21) quedó `acknowledged` con `modal_call_id`
+tras marcarse la request como `error` a mano; bloqueó Modal desde el 2026-09-21 13:02 UTC.
+
+Diagnóstico (solo lectura):
+
+```sql
+select d.dispatch_id, d.state, d.acknowledged_at, r.status, r.filename
+from public.dispatch_outbox d join public.requests r on r.id = d.request_id
+where d.state in ('leased','spawning','acknowledged');
+```
+
+Corrección (solo si la request es terminal y no hay contenedor activo en Modal):
+
+```sql
+update public.dispatch_outbox
+set state = 'closed', updated_at = clock_timestamp(),
+    last_error = coalesce(last_error, '') || ' | closed by operator: request terminal'
+where dispatch_id = '<dispatch_id>'
+  and state in ('leased','spawning','acknowledged')
+  and exists (select 1 from public.requests r where r.id = request_id and r.status in ('done','error'));
+select public.wake_dispatch_if_pending();   -- o esperar al pg_cron (≤ 1 min)
+```
+
+Prevención: nunca marcar una request como `error` con un UPDATE directo mientras tenga
+receipt activo; usar `fail_request_attempt` (cierra outbox y libera crédito). El test
+en vivo `test_live_rls_and_credit_gates` ya no corre por defecto.

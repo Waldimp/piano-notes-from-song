@@ -30,6 +30,7 @@ docs actualizados, test en vivo aislado con `PIANO_RUN_LIVE_TESTS=1`.
 
 ## Siguiente tarea
 
+0. **Cerrar el receipt atascado** `8a21c3d2-63ef-4672-b50a-6a266465470d` (runbook en `MODAL_GENERAL_PROCESSING.md`): hasta entonces Modal no despacha; la request de preview `760cca4c…` espera en cola y se procesará sola al cerrarlo.
 1. Dominio propio + Resend (`docs/AUTH_EMAIL_RESEND.md`) → registro/recuperación fiables.
 2. Cutover de Mini Pack a cobros reales cuando el negocio lo decida (`WOMPI_INTEGRATION.md`).
 3. Beta cerrada con 10–20 usuarios externos midiendo activación y conversión.
