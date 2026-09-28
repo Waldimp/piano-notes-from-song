@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
 import { planLabel } from "@/lib/userMessages";
-import { supabase } from "@/lib/supabase";
+import { isCloudMode, supabase } from "@/lib/supabase";
 
 export type UsageInfo = {
   plan_code: string;
@@ -18,6 +18,7 @@ export function useUsage(refreshKey = 0): { usage: UsageInfo | null; error: stri
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!isCloudMode) return; // modo local: no hay planes ni sesión
     const { data } = await supabase().auth.getSession();
     const token = data.session?.access_token;
     if (!token) return;
