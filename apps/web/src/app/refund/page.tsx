@@ -1,71 +1,41 @@
-import Link from "next/link";
+import LegalLayout from "@/components/LegalLayout";
 
-import AppFooter from "@/components/AppFooter";
-
-export const metadata = { title: "Refund Policy — Pianissimo" };
+export const metadata = { title: "Política de reembolsos" };
 
 export default function RefundPage() {
   return (
-    <main className="home" style={{ maxWidth: 720 }}>
-      <div className="topbar">
-        <h1>Refund Policy</h1>
-        <Link className="btn small" href="/landing">
-          Inicio
-        </Link>
-      </div>
-      <p className="subtitle">Last updated: 2026-09-21. Applies to Mini Pack.</p>
-
-      <section>
-        <h2>1. Mini Pack</h2>
-        <p>
-          Mini Pack is a one-time purchase of credits. After a successful Wompi
-          payment, credits are added to your account once.
-        </p>
-      </section>
-
-      <section>
-        <h2>2. Unused credits</h2>
-        <p>
-          If you request a refund before using the purchased credits, we may
-          reverse the credit grant and process a refund through Wompi when the
-          payment provider allows it.
-        </p>
-      </section>
-
-      <section>
-        <h2>3. Consumed credits</h2>
-        <p>
-          If some or all purchased credits were already used for tutorials, we do
-          not automatically refund the full amount. We may offer a partial
-          adjustment case-by-case; we will not invent a negative credit balance
-          without review.
-        </p>
-      </section>
-
-      <section>
-        <h2>4. Duplicate or erroneous charges</h2>
-        <p>
-          If Wompi or our systems show a duplicate successful charge for the same
-          purchase, contact us. We will reconcile against our billing records and
-          the Wompi transaction id. Valid duplicates should be refunded or
-          corrected without granting extra credits twice.
-        </p>
-      </section>
-
-      <section>
-        <h2>5. How to contact</h2>
-        <p>
-          Email us from the address on your Pianissimo account and include the
-          approximate time of purchase and (if available) the Wompi authorization
-          or transaction reference from your receipt.
-        </p>
-      </section>
-
+    <LegalLayout title="Política de reembolsos" updated="27 de septiembre de 2026">
+      <h2>1. Mini Pack</h2>
       <p>
-        See also <Link href="/terms">Terms</Link> and{" "}
-        <Link href="/privacy">Privacy</Link>.
+        El Mini Pack es una compra única de créditos. Tras un pago correcto en Wompi, los créditos se añaden a
+        tu cuenta una sola vez.
       </p>
-      <AppFooter />
-    </main>
+
+      <h2>2. Créditos sin usar</h2>
+      <p>
+        Si pides un reembolso antes de usar los créditos comprados, podemos revertir la acreditación y
+        gestionar el reembolso a través de Wompi cuando el proveedor lo permita.
+      </p>
+
+      <h2>3. Créditos consumidos</h2>
+      <p>
+        Si ya usaste parte o todos los créditos en tutoriales, no reembolsamos automáticamente el importe
+        completo. Podemos ofrecer un ajuste parcial caso por caso; nunca dejaremos un saldo negativo sin
+        revisión.
+      </p>
+
+      <h2>4. Cobros duplicados o erróneos</h2>
+      <p>
+        Si Wompi o nuestros sistemas muestran un cobro duplicado por la misma compra, contáctanos. Conciliamos
+        con nuestros registros y el identificador de transacción de Wompi; los duplicados válidos se reembolsan
+        o corrigen sin acreditar créditos dos veces.
+      </p>
+
+      <h2>5. Cómo contactarnos</h2>
+      <p>
+        Escríbenos desde el correo de tu cuenta de Pianissimo indicando la hora aproximada de la compra y, si
+        lo tienes, la referencia de autorización o transacción de Wompi de tu recibo.
+      </p>
+    </LegalLayout>
   );
 }

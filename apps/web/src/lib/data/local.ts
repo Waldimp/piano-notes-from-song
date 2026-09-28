@@ -1,4 +1,4 @@
-/** Fuente de datos local: el backend FastAPI de tu PC (puerto 8010). */
+/** Fuente de datos local: el backend FastAPI de tu PC (puerto 8010 por defecto). */
 
 import type { PianoTranscription } from "@piano/contracts";
 import { isPianoTranscription } from "@piano/contracts";
@@ -15,13 +15,34 @@ async function expectOk(res: Response, what: string): Promise<Response> {
   return res;
 }
 
+type LocalSongRow = Omit<SongSummary, "preview_seconds" | "source_duration_seconds"> & {
+  preview_seconds?: number | null;
+  source_duration_seconds?: number | null;
+};
+
+function normalise(row: LocalSongRow): SongSummary {
+  return {
+    ...row,
+    preview_seconds: row.preview_seconds ?? null,
+    source_duration_seconds: row.source_duration_seconds ?? null,
+  };
+}
+
+async function fetchSongs(): Promise<SongSummary[]> {
+  // no-store: son datos locales que cambian (retranscripciones, renombres).
+  const res = await fetch(`${API_URL}/api/transcriptions`, { cache: "no-store" });
+  const rows = (await (await expectOk(res, "No se pudo listar la biblioteca")).json()) as LocalSongRow[];
+  return rows.map(normalise);
+}
+
 export const localDataSource: DataSource = {
   kind: "local",
 
-  async listSongs(): Promise<SongSummary[]> {
-    // no-store: son datos locales que cambian (retranscripciones, renombres).
-    const res = await fetch(`${API_URL}/api/transcriptions`, { cache: "no-store" });
-    return (await expectOk(res, "No se pudo listar la biblioteca")).json();
+  listSongs: fetchSongs,
+
+  async getSong(id: string): Promise<SongSummary | null> {
+    const songs = await fetchSongs();
+    return songs.find((s) => s.id === id) ?? null;
   },
 
   async getTranscription(id: string): Promise<PianoTranscription> {
@@ -68,6 +89,7 @@ export const localDataSource: DataSource = {
       error: j.error ?? null,
       queuePosition: j.queuePosition ?? null,
       createdAt: new Date(j.created_at * 1000).toISOString(),
+      previewSeconds: null,
     };
   },
 

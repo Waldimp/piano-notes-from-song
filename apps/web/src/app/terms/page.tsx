@@ -1,90 +1,57 @@
-import Link from "next/link";
+import LegalLayout from "@/components/LegalLayout";
 
-import AppFooter from "@/components/AppFooter";
-
-export const metadata = { title: "Terms of Service — Pianissimo" };
+export const metadata = { title: "Términos del servicio" };
 
 export default function TermsPage() {
   return (
-    <main className="home" style={{ maxWidth: 720 }}>
-      <div className="topbar">
-        <h1>Terms of Service</h1>
-        <Link className="btn small" href="/landing">
-          Inicio
-        </Link>
-      </div>
-      <p className="subtitle">Last updated: 2026-09-21. Product: Pianissimo.</p>
-
-      <section>
-        <h2>1. Service</h2>
-        <p>
-          Pianissimo turns audio you upload into piano learning tutorials. The
-          service is provided as-is during beta and may change or be interrupted.
-        </p>
-      </section>
-
-      <section>
-        <h2>2. Accounts</h2>
-        <p>
-          You must keep your login secure and are responsible for activity under
-          your account. We may suspend accounts that abuse the service (spam,
-          fraud, or attempts to bypass limits).
-        </p>
-      </section>
-
-      <section>
-        <h2>3. Credits and Mini Pack</h2>
-        <p>
-          Tutorials consume credits from your balance. The Free plan includes a
-          limited grant. The Mini Pack is a one-time purchase of credits at the
-          price shown at checkout. Credits have no cash value and are not a
-          stored-value wallet beyond use inside Pianissimo.
-        </p>
-      </section>
-
-      <section>
-        <h2>4. Your uploads</h2>
-        <p>
-          You confirm you have the rights to upload and process the audio you
-          submit. You must not upload illegal content or material you do not own
-          or license. We may delete uploads that violate these terms.
-        </p>
-      </section>
-
-      <section>
-        <h2>5. Payments</h2>
-        <p>
-          Card payments are processed by Wompi (El Salvador). Pianissimo does not
-          store card numbers or CVV. Successful payment confirmation comes from
-          Wompi webhooks verified by our servers—not from the browser redirect
-          alone.
-        </p>
-      </section>
-
-      <section>
-        <h2>6. Availability and liability</h2>
-        <p>
-          Processing depends on third-party infrastructure (hosting, database,
-          GPU workers). We aim for reliability but do not guarantee uninterrupted
-          service. To the extent permitted by applicable law, Pianissimo and its
-          operators are not liable for indirect or consequential damages arising
-          from use of the service.
-        </p>
-      </section>
-
-      <section>
-        <h2>7. Changes</h2>
-        <p>
-          We may update these terms. Continued use after changes means you accept
-          the updated terms. Contact: support via the email on your account.
-        </p>
-      </section>
-
+    <LegalLayout title="Términos del servicio" updated="27 de septiembre de 2026">
+      <h2>1. El servicio</h2>
       <p>
-        See also <Link href="/privacy">Privacy</Link> and{" "}
-        <Link href="/refund">Refunds</Link>.
+        Pianissimo convierte el audio que subes en tutoriales para aprender piano. El servicio se ofrece tal
+        cual durante la beta y puede cambiar o interrumpirse.
       </p>
-      <AppFooter />
-    </main>
+
+      <h2>2. Cuentas</h2>
+      <p>
+        Debes mantener segura tu forma de acceso y eres responsable de la actividad de tu cuenta. Podemos
+        suspender cuentas que abusen del servicio (spam, fraude o intentos de saltarse los límites).
+      </p>
+
+      <h2>3. Créditos, vista previa y Mini Pack</h2>
+      <p>
+        Cada tutorial completo consume un crédito de tu saldo. El plan gratuito incluye créditos de vista
+        previa que procesan únicamente los primeros 60 segundos de una canción. El Mini Pack es una compra
+        única de créditos al precio mostrado en el pago. Los créditos no tienen valor en efectivo ni son un
+        monedero fuera de Pianissimo.
+      </p>
+
+      <h2>4. Tus subidas</h2>
+      <p>
+        Confirmas que tienes derecho a subir y procesar el audio que envías. No subas contenido ilegal ni
+        material del que no seas titular o licenciatario. Podemos eliminar subidas que incumplan estos
+        términos. Los archivos originales se conservan temporalmente para poder generar la canción completa y
+        después se eliminan.
+      </p>
+
+      <h2>5. Pagos</h2>
+      <p>
+        Los pagos con tarjeta los procesa Wompi (El Salvador). Pianissimo no almacena números de tarjeta ni
+        CVV. La confirmación de un pago llega por los avisos verificados de Wompi a nuestros servidores, no
+        solo por la redirección del navegador.
+      </p>
+
+      <h2>6. Disponibilidad y responsabilidad</h2>
+      <p>
+        El procesamiento depende de infraestructura de terceros (hosting, base de datos, GPU). Buscamos
+        fiabilidad, pero no garantizamos un servicio ininterrumpido. En la medida permitida por la ley,
+        Pianissimo y sus operadores no responden por daños indirectos derivados del uso del servicio.
+      </p>
+
+      <h2>7. Cambios</h2>
+      <p>
+        Podemos actualizar estos términos. Seguir usando el servicio tras un cambio implica aceptarlo. Contacto:
+        el correo de soporte indicado al pie de la página.
+      </p>
+    </LegalLayout>
   );
 }

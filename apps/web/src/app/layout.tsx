@@ -1,9 +1,25 @@
 import type { Metadata, Viewport } from "next";
+import { Fraunces, Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
 import "./globals.css";
 import AuthGate from "@/components/AuthGate";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_OG, SITE_TITLE } from "@/lib/site";
+
+const manrope = Manrope({
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  variable: "--font-manrope",
+  display: "swap",
+});
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  style: ["normal", "italic"],
+  variable: "--font-fraunces",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -24,12 +40,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0e0e14",
+  themeColor: "#100d0b",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="es" className={`${manrope.variable} ${fraunces.variable}`}>
       <body>
         <AuthGate>{children}</AuthGate>
       </body>

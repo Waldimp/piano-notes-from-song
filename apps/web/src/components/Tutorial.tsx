@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Tutorial de notas que caen.
+ * Reproductor de notas que caen — la parte estrella del producto.
  *
  * Sincronización: el elemento <audio> es el reloj autoritativo. Cada frame
  * (requestAnimationFrame) lee audio.currentTime vía MediaClock y pinta el canvas.
@@ -10,10 +10,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { PianoTranscription } from "@piano/contracts";
 
+import { useUsage } from "@/components/UsageBanner";
+import { formatClock, isPreviewSong, unlockDecision } from "@/lib/beta/preview";
 import { MediaClock, loadSyncOffsetMs, saveSyncOffsetMs } from "@/lib/clock";
-import { getDataSource } from "@/lib/data";
+import { type SongSummary, getDataSource } from "@/lib/data";
 import { maxDuration } from "@/lib/falling";
 import {
   PLAYBACK_SPEEDS,
@@ -24,9 +27,10 @@ import {
   resetPlaybackTime,
 } from "@/lib/playback";
 import { DEFAULT_VIEW_OPTIONS, type HandFilter, type ViewOptions, drawFrame } from "@/lib/renderer";
+import { isCloudMode, supabase } from "@/lib/supabase";
+import { mapCreateRequestError } from "@/lib/userMessages";
 
 const VIEW_KEY = "piano:viewOptions";
-/** Opciones del selector "Duración": real, o recorte a N segundos. */
 const DURATION_CAPS: Array<{ label: string; value: number | null }> = [
   { label: "Real", value: null },
   { label: "1.5 s", value: 1.5 },
@@ -55,12 +59,6 @@ interface Marker {
   t: number;
 }
 
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
 function loadMarkers(id: string): Marker[] {
   try {
     const raw = localStorage.getItem(`piano:markers:${id}`);
@@ -81,21 +79,15 @@ function saveMarkers(id: string, markers: Marker[]): void {
 function friendlyLoadError(raw: string): string {
   const lower = raw.toLowerCase();
   if (lower.includes("not found") || lower.includes("no encontrada")) {
-    return "No encontramos el tutorial de esta canción. Puede que aún se esté procesando o que falte un archivo.";
+    return "No encontramos el tutorial de esta canción. Puede que aún se esté procesando.";
   }
   if (lower.includes("notes.json") || lower.includes("contrato")) {
-    return "Los datos del tutorial están incompletos o dañados. Prueba a volver a la biblioteca.";
+    return "Los datos del tutorial están incompletos. Vuelve a la biblioteca e inténtalo de nuevo.";
   }
   if (lower.includes("audio") || lower.includes("signed")) {
     return "No pudimos cargar el audio. Revisa tu conexión e inténtalo de nuevo.";
   }
-  if (lower.includes("storage") || lower.includes("supabase") || lower.includes("rpc")) {
-    return "No pudimos cargar el tutorial. Inténtalo de nuevo en un momento.";
-  }
-  if (raw.length > 160 || lower.includes("stack")) {
-    return "No pudimos cargar el tutorial. Inténtalo de nuevo.";
-  }
-  return raw;
+  return "No pudimos cargar el tutorial. Inténtalo de nuevo en un momento.";
 }
 
 function isTypingTarget(el: EventTarget | null): boolean {
@@ -106,7 +98,10 @@ function isTypingTarget(el: EventTarget | null): boolean {
 
 export default function Tutorial({ id }: { id: string }) {
   const data = getDataSource();
+  const router = useRouter();
+  const { usage } = useUsage();
   const [transcription, setTranscription] = useState<PianoTranscription | null>(null);
+  const [song, setSong] = useState<SongSummary | null>(null);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +110,6 @@ export default function Tutorial({ id }: { id: string }) {
   const [displayTime, setDisplayTime] = useState(0);
   const [loopA, setLoopA] = useState<number | null>(null);
   const [loopB, setLoopB] = useState<number | null>(null);
-  const [loopArmed, setLoopArmed] = useState(false);
   const [handFilter, setHandFilter] = useState<HandFilter>("both");
   const [markers, setMarkers] = useState<Marker[]>([]);
   const [rotateDismissed, setRotateDismissed] = useState(false);
@@ -124,6 +118,9 @@ export default function Tutorial({ id }: { id: string }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [audioReady, setAudioReady] = useState(false);
   const [loadKey, setLoadKey] = useState(0);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [unlockBusy, setUnlockBusy] = useState(false);
+  const [unlockMsg, setUnlockMsg] = useState<string | null>(null);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -145,13 +142,14 @@ export default function Tutorial({ id }: { id: string }) {
     setTranscription(null);
     setAudioSrc(null);
     setAudioReady(false);
-    Promise.all([data.getTranscription(id), data.getAudioUrl(id)])
-      .then(([t, url]) => {
+    Promise.all([data.getTranscription(id), data.getAudioUrl(id), data.getSong(id)])
+      .then(([t, url, meta]) => {
         if (cancelled) return;
         maxDurRef.current = maxDuration(t.notes);
         durationRef.current = t.duration;
         setTranscription(t);
         setAudioSrc(url);
+        setSong(meta);
         setLoading(false);
       })
       .catch((e: Error) => {
@@ -237,19 +235,16 @@ export default function Tutorial({ id }: { id: string }) {
         clockRef.current.reset();
       }
 
-      const renderTime = t + syncOffsetRef.current / 1000;
-
       drawFrame(ctx, cssWidth, cssHeight, {
         notes: transcription.notes,
         maxNoteDuration: maxDurRef.current,
-        currentTime: renderTime,
+        currentTime: t + syncOffsetRef.current / 1000,
         loopA: a,
         loopB: b,
         handFilter: handFilterRef.current,
         view: viewRef.current,
       });
 
-      // UI clock: ~10 Hz (o al pausar / seek grande) — evita re-render React a 60 fps.
       if (audio.paused || now - lastUiUpdateRef.current > 100) {
         lastUiUpdateRef.current = now;
         setDisplayTime(t);
@@ -307,7 +302,6 @@ export default function Tutorial({ id }: { id: string }) {
     }
   }, []);
 
-  // Atajos: Space play/pause, ←/→ seek. No interferir en inputs.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;
@@ -316,20 +310,13 @@ export default function Tutorial({ id }: { id: string }) {
         togglePlay();
         return;
       }
-      if (e.code === "ArrowLeft") {
+      if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
         e.preventDefault();
         const audio = audioRef.current;
         const t = audio?.currentTime ?? displayTime;
         const { a, b } = loopRef.current;
-        seek(nudgeTime(t, -SEEK_STEP_SECONDS, durationRef.current, a, b));
-        return;
-      }
-      if (e.code === "ArrowRight") {
-        e.preventDefault();
-        const audio = audioRef.current;
-        const t = audio?.currentTime ?? displayTime;
-        const { a, b } = loopRef.current;
-        seek(nudgeTime(t, SEEK_STEP_SECONDS, durationRef.current, a, b));
+        const delta = e.code === "ArrowLeft" ? -SEEK_STEP_SECONDS : SEEK_STEP_SECONDS;
+        seek(nudgeTime(t, delta, durationRef.current, a, b));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -350,36 +337,18 @@ export default function Tutorial({ id }: { id: string }) {
     saveViewOptions(next);
   };
 
-  const resetSyncOffset = () => {
-    syncOffsetRef.current = 0;
-    setSyncOffsetMs(0);
-    saveSyncOffsetMs(0);
-  };
-
   const markA = () => {
     const t = audioRef.current?.currentTime ?? 0;
     setLoopA(t);
-    setLoopArmed(true);
     if (loopB !== null && loopB <= t) setLoopB(null);
   };
   const markB = () => {
     const t = audioRef.current?.currentTime ?? 0;
-    if (loopA !== null && t > loopA) {
-      setLoopB(t);
-      setLoopArmed(true);
-    }
+    if (loopA !== null && t > loopA) setLoopB(t);
   };
   const clearLoop = () => {
     setLoopA(null);
     setLoopB(null);
-    setLoopArmed(false);
-  };
-  const armLoopFromHere = () => {
-    if (loopA !== null && loopB !== null) {
-      clearLoop();
-      return;
-    }
-    markA();
   };
 
   const addMarker = () => {
@@ -388,24 +357,57 @@ export default function Tutorial({ id }: { id: string }) {
     setMarkers(next);
     saveMarkers(id, next);
   };
-
   const removeMarker = (index: number) => {
     const next = markers.filter((_, i) => i !== index);
     setMarkers(next);
     saveMarkers(id, next);
   };
 
+  const unlock = async () => {
+    if (!song) return;
+    const decision = unlockDecision(song, usage?.plan_code ?? "free", usage?.credit_balance ?? 0);
+    if (decision.action !== "unlock") {
+      router.push("/pricing");
+      return;
+    }
+    setUnlockBusy(true);
+    setUnlockMsg(null);
+    try {
+      const { data: session } = await supabase().auth.getSession();
+      const token = session.session?.access_token;
+      if (!token) return;
+      const res = await fetch("/api/unlock-song", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ song_id: song.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUnlockMsg(mapCreateRequestError({ code: body.code, message: body.message, error: body.error, status: res.status }));
+        return;
+      }
+      router.push("/");
+    } finally {
+      setUnlockBusy(false);
+    }
+  };
+
   if (error && !transcription) {
     return (
-      <div className="message tutorial-error">
-        <p>{error}</p>
-        <div className="tutorial-error-actions">
-          <button className="btn active" type="button" onClick={() => setLoadKey((k) => k + 1)}>
-            Reintentar
-          </button>
-          <Link href="/" className="btn">
-            ← Tus canciones
-          </Link>
+      <div className="tutorial-error">
+        <div className="card pad-lg" style={{ maxWidth: 460 }}>
+          <h2>Ups</h2>
+          <p className="muted" style={{ marginTop: "0.5rem" }}>
+            {error}
+          </p>
+          <div className="row" style={{ justifyContent: "center", marginTop: "1.25rem" }}>
+            <button className="btn primary" type="button" onClick={() => setLoadKey((k) => k + 1)}>
+              Reintentar
+            </button>
+            <Link href="/" className="btn">
+              Tus canciones
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -422,9 +424,32 @@ export default function Tutorial({ id }: { id: string }) {
   const duration = transcription.duration;
   const hasHands = transcription.notes.some((n) => n.hand !== null);
   const loopActive = loopA !== null && loopB !== null;
+  const preview = song ? isPreviewSong(song) : false;
+  const decision = song ? unlockDecision(song, usage?.plan_code ?? "free", usage?.credit_balance ?? 0) : { action: "none" as const };
+  const pct = duration > 0 ? Math.min(100, (displayTime / duration) * 100) : 0;
+  const title = song?.title ?? "Tutorial";
 
   return (
-    <div className="tutorial" ref={rootRef}>
+    <div className="player" ref={rootRef}>
+      <div className="player-bar">
+        <Link href="/" className="btn icon ghost" aria-label="Volver a tus canciones" title="Tus canciones">
+          ←
+        </Link>
+        <span className="title" title={title}>
+          {title}
+        </span>
+        {preview && <span className="pill gold">Vista previa</span>}
+        <button
+          className="btn icon ghost"
+          type="button"
+          onClick={() => void toggleFullscreen()}
+          title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+          aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
+        >
+          {isFullscreen ? "⤡" : "⤢"}
+        </button>
+      </div>
+
       <div ref={containerRef} className="stage">
         <canvas ref={canvasRef} aria-hidden className="stage-canvas" />
         {!audioReady && (
@@ -432,207 +457,162 @@ export default function Tutorial({ id }: { id: string }) {
             Cargando audio…
           </div>
         )}
+        {preview && isCloudMode && (
+          <div className="preview-banner" role="status">
+            <span>
+              Vista previa: {formatClock(song?.preview_seconds ?? duration)}
+              {song?.source_duration_seconds ? ` de ${formatClock(song.source_duration_seconds)}` : ""}
+            </span>
+            <button className="btn primary small" type="button" onClick={() => void unlock()} disabled={unlockBusy}>
+              {unlockBusy ? "Procesando…" : decision.action === "unlock" ? "Completa (1 tutorial)" : "Desbloquear completa"}
+            </button>
+          </div>
+        )}
+        {unlockMsg && (
+          <div className="preview-banner" role="alert" style={{ bottom: "auto", top: "10%" }}>
+            <span>{unlockMsg}</span>
+            <button className="btn xs ghost" type="button" onClick={() => setUnlockMsg(null)} aria-label="Cerrar">
+              ✕
+            </button>
+          </div>
+        )}
         <div className={`rotate-hint${rotateDismissed ? "" : " visible"}`}>
-          <div>
-            Gira el teléfono a horizontal: el teclado se lee mucho mejor.
-            <br />
-            <button className="btn" type="button" onClick={() => setRotateDismissed(true)}>
+          <div className="card pad-lg" style={{ maxWidth: 360 }}>
+            <h3>Gira el teléfono</h3>
+            <p className="muted" style={{ marginTop: "0.4rem" }}>
+              En horizontal las 88 teclas se ven mucho mejor.
+            </p>
+            <button className="btn" type="button" style={{ marginTop: "1rem" }} onClick={() => setRotateDismissed(true)}>
               Seguir en vertical
             </button>
           </div>
         </div>
       </div>
 
-      <div className="controls controls-primary">
-        <Link href="/" className="back" aria-label="Volver a tus canciones">
-          ←
-        </Link>
-        <button
-          className="btn"
-          type="button"
-          onClick={togglePlay}
-          aria-label={isPlaying ? "Pausar" : "Reproducir"}
-          title={isPlaying ? "Pausar (Espacio)" : "Reproducir (Espacio)"}
-        >
-          {isPlaying ? "Pausa" : "Play"}
-        </button>
-
-        <span className="time" aria-live="off">
-          {formatTime(displayTime)} / {formatTime(duration)}
-        </span>
-
-        <input
-          className="seek"
-          type="range"
-          min={0}
-          max={duration}
-          step={0.01}
-          value={Math.min(displayTime, duration)}
-          onChange={(e) => seek(Number(e.target.value))}
-          aria-label="Posición en la canción"
-        />
-
-        <span className="group" role="group" aria-label="Velocidad">
-          {PLAYBACK_SPEEDS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => changeSpeed(s)}
-              className={`btn small${speed === s ? " active" : ""}`}
-              aria-pressed={speed === s}
-              title={`Velocidad ${s}x`}
-            >
-              {s === 1 ? "1x" : `${s}x`}
-            </button>
-          ))}
-        </span>
-
-        <span className="group" role="group" aria-label="Loop de práctica">
+      <div className="player-controls">
+        <div className="transport">
           <button
-            className={`btn small${loopArmed || loopActive ? " active" : ""}`}
+            className="play-btn"
             type="button"
-            onClick={armLoopFromHere}
-            title={loopActive ? "Quitar loop" : "Activar loop: marca inicio A en la posición actual"}
-            aria-pressed={loopActive}
+            onClick={togglePlay}
+            aria-label={isPlaying ? "Pausar" : "Reproducir"}
+            title={isPlaying ? "Pausar (Espacio)" : "Reproducir (Espacio)"}
           >
-            Loop
+            {isPlaying ? "❚❚" : "▶"}
           </button>
-          <button
-            className="btn small"
-            type="button"
-            onClick={markA}
-            title="Marcar inicio del loop (A)"
-          >
-            A{loopA !== null ? ` ${formatTime(loopA)}` : ""}
-          </button>
-          <button
-            className="btn small"
-            type="button"
-            onClick={markB}
-            disabled={loopA === null}
-            title="Marcar final del loop (B)"
-          >
-            B{loopB !== null ? ` ${formatTime(loopB)}` : ""}
-          </button>
-          {(loopA !== null || loopB !== null) && (
-            <button className="btn small" type="button" onClick={clearLoop} aria-label="Quitar loop">
-              Clear
-            </button>
-          )}
-        </span>
-
-        <button
-          className="btn small"
-          type="button"
-          onClick={() => void toggleFullscreen()}
-          title={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-          aria-label={isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}
-        >
-          {isFullscreen ? "Salir" : "Pantalla completa"}
-        </button>
-      </div>
-
-      <div className="controls controls-secondary">
-        {hasHands && (
-          <span className="group" role="group" aria-label="Filtro de manos">
-            {(
-              [
-                ["both", "Ambas"],
-                ["left", "Izq."],
-                ["right", "Der."],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setHandFilter(value)}
-                className={`btn small${handFilter === value ? " active" : ""}`}
-                aria-pressed={handFilter === value}
-                title="Separación de manos aproximada (heurística), no exacta"
-              >
-                {label}
+          <span className="time" aria-live="off">
+            {formatClock(displayTime)} / {formatClock(duration)}
+          </span>
+          <input
+            className="seek"
+            type="range"
+            min={0}
+            max={duration}
+            step={0.01}
+            value={Math.min(displayTime, duration)}
+            onChange={(e) => seek(Number(e.target.value))}
+            aria-label="Posición en la canción"
+            style={{ ["--pct" as string]: `${pct}%` }}
+          />
+          <div className="seg" role="group" aria-label="Velocidad">
+            {PLAYBACK_SPEEDS.map((s) => (
+              <button key={s} type="button" onClick={() => changeSpeed(s)} aria-pressed={speed === s} title={`Velocidad ${s}x`}>
+                {s === 1 ? "1x" : `${s}x`}
               </button>
             ))}
-          </span>
-        )}
-
-        <span className="group" role="group" aria-label="Duración visual de las notas">
-          <span className="group-label">Duración</span>
-          {DURATION_CAPS.map((opt) => (
-            <button
-              key={opt.label}
-              type="button"
-              className={`btn small${view.noteDurationCap === opt.value ? " active" : ""}`}
-              onClick={() => updateView({ noteDurationCap: opt.value })}
-              title={
-                opt.value === null
-                  ? "Duración real detectada (con pedal las notas se alargan)"
-                  : `Recortar cada nota a ${opt.value} s`
-              }
-            >
-              {opt.label}
+          </div>
+          <div className="seg" role="group" aria-label="Loop de práctica">
+            <span className="seg-label">Loop</span>
+            <button type="button" onClick={markA} title="Marcar inicio (A)" aria-pressed={loopA !== null}>
+              A{loopA !== null ? ` ${formatClock(loopA)}` : ""}
             </button>
-          ))}
-        </span>
-
-        <button
-          className={`btn small${view.showNoteNames ? " active" : ""}`}
-          type="button"
-          onClick={() => updateView({ showNoteNames: !view.showNoteNames })}
-          title="Mostrar nombres de notas"
-          aria-pressed={view.showNoteNames}
-        >
-          ABC
-        </button>
-
-        <span className="group" role="group" aria-label="Ajuste de sincronía">
-          <button
-            className="btn small"
-            type="button"
-            onClick={() => changeSyncOffset(-25)}
-            title="Retrasar notas (−25 ms)"
-          >
-            −
-          </button>
-          <button
-            className="btn small sync-value"
-            type="button"
-            onClick={resetSyncOffset}
-            title="Sincronía audio/notas. Útil con auriculares Bluetooth. Clic para 0."
-          >
-            Sinc. {syncOffsetMs > 0 ? "+" : ""}
-            {syncOffsetMs} ms
-          </button>
-          <button
-            className="btn small"
-            type="button"
-            onClick={() => changeSyncOffset(25)}
-            title="Adelantar notas (+25 ms)"
-          >
-            +
-          </button>
-        </span>
-
-        <span className="group">
-          <button className="btn small" type="button" onClick={addMarker} title="Guardar marcador en esta posición">
-            + Marcador
-          </button>
-          {markers.map((m, i) => (
-            <span key={`${m.t}-${i}`} className="marker">
-              <button className="jump" type="button" onClick={() => seek(m.t)}>
-                {m.name} {formatTime(m.t)}
+            <button type="button" onClick={markB} disabled={loopA === null} title="Marcar final (B)" aria-pressed={loopB !== null}>
+              B{loopB !== null ? ` ${formatClock(loopB)}` : ""}
+            </button>
+            {(loopA !== null || loopB !== null) && (
+              <button type="button" onClick={clearLoop} aria-label="Quitar loop" className={loopActive ? "on" : ""}>
+                ✕
               </button>
+            )}
+          </div>
+          <button
+            className={`btn small${moreOpen ? " on" : ""}`}
+            type="button"
+            onClick={() => setMoreOpen((v) => !v)}
+            aria-expanded={moreOpen}
+            aria-controls="player-more"
+          >
+            Ajustes
+          </button>
+        </div>
+
+        <div id="player-more" className={`controls-row secondary${moreOpen ? " open" : ""}`} hidden={!moreOpen}>
+          {hasHands && (
+            <div className="seg" role="group" aria-label="Manos">
+              <span className="seg-label">Manos</span>
+              {(
+                [
+                  ["both", "Ambas"],
+                  ["left", "Izq."],
+                  ["right", "Der."],
+                ] as const
+              ).map(([value, label]) => (
+                <button key={value} type="button" onClick={() => setHandFilter(value)} aria-pressed={handFilter === value} title="Separación aproximada de manos">
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="seg" role="group" aria-label="Duración visual de las notas">
+            <span className="seg-label">Notas</span>
+            {DURATION_CAPS.map((opt) => (
               <button
-                className="remove"
+                key={opt.label}
                 type="button"
-                onClick={() => removeMarker(i)}
-                aria-label={`Eliminar marcador ${m.name}`}
+                aria-pressed={view.noteDurationCap === opt.value}
+                onClick={() => updateView({ noteDurationCap: opt.value })}
+                title={opt.value === null ? "Duración real (con pedal se alargan)" : `Recortar cada nota a ${opt.value} s`}
               >
-                ×
+                {opt.label}
               </button>
-            </span>
-          ))}
-        </span>
+            ))}
+            <button type="button" aria-pressed={view.showNoteNames} onClick={() => updateView({ showNoteNames: !view.showNoteNames })} title="Nombres de las notas">
+              ABC
+            </button>
+          </div>
+          <div className="seg" role="group" aria-label="Ajuste de sincronía">
+            <span className="seg-label">Sinc.</span>
+            <button type="button" onClick={() => changeSyncOffset(-25)} title="Retrasar notas 25 ms">
+              −
+            </button>
+            <button type="button" onClick={() => { syncOffsetRef.current = 0; setSyncOffsetMs(0); saveSyncOffsetMs(0); }} title="Útil con auriculares Bluetooth. Clic para volver a 0.">
+              {syncOffsetMs > 0 ? "+" : ""}
+              {syncOffsetMs} ms
+            </button>
+            <button type="button" onClick={() => changeSyncOffset(25)} title="Adelantar notas 25 ms">
+              +
+            </button>
+          </div>
+          <div className="group">
+            <button className="btn small" type="button" onClick={addMarker} title="Guardar un marcador en esta posición">
+              + Marcador
+            </button>
+            {markers.map((m, i) => (
+              <span key={`${m.t}-${i}`} className="marker">
+                <button className="jump" type="button" onClick={() => seek(m.t)}>
+                  {m.name} {formatClock(m.t)}
+                </button>
+                <button className="remove" type="button" onClick={() => removeMarker(i)} aria-label={`Eliminar marcador ${m.name}`}>
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+          <span className="hint">
+            Espacio: play/pausa · ←/→: ±{SEEK_STEP_SECONDS}s{hasHands ? " · verde ≈ derecha, azul ≈ izquierda" : ""} ·{" "}
+            {transcription.notes.length} notas
+          </span>
+        </div>
       </div>
 
       <audio
@@ -642,21 +622,12 @@ export default function Tutorial({ id }: { id: string }) {
         onPause={() => setIsPlaying(false)}
         onEnded={() => {
           setIsPlaying(false);
-          // Al terminar sin loop activo, dejar al inicio para re-practica.
-          if (loopA === null || loopB === null) {
-            seek(resetPlaybackTime());
-          }
+          if (loopA === null || loopB === null) seek(resetPlaybackTime());
         }}
         onCanPlay={() => setAudioReady(true)}
         onError={() => setError("No se pudo cargar el audio de esta canción.")}
         preload="auto"
       />
-
-      <p className="hint">
-        Espacio: play/pausa · ←/→: ±{SEEK_STEP_SECONDS}s · Loop: A→B ·{" "}
-        {hasHands ? "Verde ≈ derecha, azul ≈ izquierda (aproximado) · " : ""}
-        {transcription.notes.length} notas
-      </p>
     </div>
   );
 }

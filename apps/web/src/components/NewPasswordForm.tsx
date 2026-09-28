@@ -4,7 +4,7 @@
 
 import { type FormEvent, useState } from "react";
 
-import { SITE_NAME } from "@/lib/site";
+import Brand from "@/components/Brand";
 import { supabase } from "@/lib/supabase";
 
 export default function NewPasswordForm({ onDone }: { onDone: () => void }) {
@@ -19,33 +19,45 @@ export default function NewPasswordForm({ onDone }: { onDone: () => void }) {
     const { error } = await supabase().auth.updateUser({ password });
     setBusy(false);
     if (error) {
-      setError(error.message);
+      setError("No pudimos guardar la contraseña. Prueba con otra o pide un enlace nuevo.");
       return;
     }
     onDone();
   };
 
   return (
-    <div className="login">
-      <form onSubmit={submit}>
-        <h1>{SITE_NAME}</h1>
-        <p className="subtitle">Elige tu nueva contraseña</p>
-        <input
-          className="input"
-          type="password"
-          placeholder="Nueva contraseña (mín. 6)"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={6}
-          autoFocus
-        />
-        {error && <div className="notice">{error}</div>}
-        <button className="btn active" type="submit" disabled={busy}>
-          {busy ? "Guardando…" : "Guardar y entrar"}
-        </button>
-      </form>
+    <div className="auth" style={{ gridTemplateColumns: "1fr" }}>
+      <section className="auth-form">
+        <form onSubmit={submit}>
+          <Brand href="/landing" />
+          <div>
+            <h1>Nueva contraseña</h1>
+            <p className="subtitle" style={{ marginTop: "0.4rem" }}>
+              Elige una contraseña de al menos 6 caracteres.
+            </p>
+          </div>
+          <input
+            className="input"
+            type="password"
+            placeholder="Nueva contraseña"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            autoFocus
+            aria-label="Nueva contraseña"
+          />
+          {error && (
+            <div className="notice" role="alert">
+              {error}
+            </div>
+          )}
+          <button className="btn primary lg block" type="submit" disabled={busy}>
+            {busy ? "Guardando…" : "Guardar y entrar"}
+          </button>
+        </form>
+      </section>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 
+import { planLabel } from "@/lib/userMessages";
 import { supabase } from "@/lib/supabase";
 
 export type UsageInfo = {
@@ -12,22 +13,7 @@ export type UsageInfo = {
   max_duration_seconds: number;
 };
 
-function planLabel(code: string): string {
-  switch (code) {
-    case "free":
-      return "Gratis";
-    case "mini":
-      return "Mini Pack";
-    case "practice":
-      return "Practice";
-    case "plus":
-      return "Plus";
-    default:
-      return code;
-  }
-}
-
-export default function UsageBanner({ refreshKey = 0 }: { refreshKey?: number }) {
+export function useUsage(refreshKey = 0): { usage: UsageInfo | null; error: string | null; reload: () => void } {
   const [usage, setUsage] = useState<UsageInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +27,7 @@ export default function UsageBanner({ refreshKey = 0 }: { refreshKey?: number })
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(body.error ?? "No pudimos cargar tu plan");
+      setError("No pudimos cargar tu plan");
       return;
     }
     setUsage(body.usage as UsageInfo);
@@ -52,41 +38,36 @@ export default function UsageBanner({ refreshKey = 0 }: { refreshKey?: number })
     void load();
   }, [load, refreshKey]);
 
+  return { usage, error, reload: () => void load() };
+}
+
+/** Chip compacto de plan + tutoriales disponibles (cabecera de la biblioteca). */
+export default function UsageBanner({ refreshKey = 0 }: { refreshKey?: number }) {
+  const { usage, error } = useUsage(refreshKey);
+
   if (error) {
     return (
-      <div className="notice info" role="status">
+      <span className="pill warn" role="status">
         {error}
-      </div>
+      </span>
     );
   }
   if (!usage) return null;
 
-  const used = usage.credits_settled;
   const remaining = usage.credit_balance;
-  const pool = Math.max(remaining + used, remaining, used);
-  const durationLabel =
-    usage.max_duration_seconds <= 60
-      ? "1 minuto"
-      : `${Math.round(usage.max_duration_seconds / 60)} minutos`;
+  const isFree = usage.plan_code === "free";
 
   return (
-    <div className="usage-banner" role="status">
-      <p style={{ margin: 0 }}>
+    <Link href={remaining <= 0 ? "/pricing" : "/account"} className="plan-chip" role="status">
+      <span>
         <strong>{planLabel(usage.plan_code)}</strong>
-        {" · "}
-        {remaining} tutorial{remaining === 1 ? "" : "es"} disponible
-        {remaining === 1 ? "" : "s"}
-        {pool > 0 ? ` (de ${pool})` : ""}
-        {" · "}
-        Máx. {durationLabel} por canción
-        {" · "}
-        <Link href="/account">Cuenta</Link>
-      </p>
-      {remaining <= 0 && (
-        <p style={{ margin: "0.35rem 0 0" }}>
-          Agotaste tus tutoriales. <Link href="/pricing">Ver precios</Link>
-        </p>
-      )}
-    </div>
+        <span className="sep"> · </span>
+        {remaining} {remaining === 1 ? "tutorial" : "tutoriales"}
+        {isFree ? " · vista previa 60 s" : ""}
+      </span>
+      <span className={`btn xs ${remaining <= 0 ? "primary" : ""}`}>
+        {remaining <= 0 ? "Conseguir más" : "Ver plan"}
+      </span>
+    </Link>
   );
 }

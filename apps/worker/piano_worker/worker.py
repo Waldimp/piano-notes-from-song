@@ -83,7 +83,13 @@ def process_request(client, req: dict, engine) -> bool:
         audio_path = INPUT_DIR / f"{stem}{ext}"
         audio_path.write_bytes(client.storage.from_(UPLOADS_BUCKET).download(req["audio_path"]))
 
-        result = transcribe_file(audio_path, engine=engine, output_root=OUTPUT_DIR)
+        # FREE preview: recortar ANTES de transcribir (mismo criterio que Modal).
+        from .preview import prepare_transcription_input, resolve_preview_seconds
+
+        preview_seconds = resolve_preview_seconds(req.get("preview_seconds"))
+        transcription_input = prepare_transcription_input(audio_path, preview_seconds)
+
+        result = transcribe_file(transcription_input, engine=engine, output_root=OUTPUT_DIR)
         # Registrar tambien en la biblioteca local para que aparezca en tu PC
         try:
             import sys

@@ -1,81 +1,51 @@
-import Link from "next/link";
+import LegalLayout from "@/components/LegalLayout";
 
-import AppFooter from "@/components/AppFooter";
-
-export const metadata = { title: "Privacy Policy — Pianissimo" };
+export const metadata = { title: "Política de privacidad" };
 
 export default function PrivacyPage() {
   return (
-    <main className="home" style={{ maxWidth: 720 }}>
-      <div className="topbar">
-        <h1>Privacy Policy</h1>
-        <Link className="btn small" href="/landing">
-          Inicio
-        </Link>
-      </div>
-      <p className="subtitle">Last updated: 2026-09-21. Product: Pianissimo.</p>
+    <LegalLayout title="Política de privacidad" updated="27 de septiembre de 2026">
+      <h2>1. Qué datos tratamos</h2>
+      <ul>
+        <li>Cuenta: correo e identificadores de autenticación (Supabase Auth).</li>
+        <li>Subidas: los archivos de audio que envías y los datos derivados del tutorial (notas).</li>
+        <li>Uso: plan, saldo de créditos, estado de las solicitudes y registros relacionados.</li>
+        <li>Facturación: identificadores de compra y referencias de transacción de Wompi (nunca el número de tarjeta ni CVV).</li>
+      </ul>
 
-      <section>
-        <h2>1. Data we process</h2>
-        <ul>
-          <li>Account: email and authentication identifiers (via Supabase Auth).</li>
-          <li>Uploads: audio files you submit and derived tutorial data (notes).</li>
-          <li>Usage: plan, credit balance, request status, and related logs.</li>
-          <li>Billing metadata: purchase ids and Wompi transaction references (not card PAN/CVV).</li>
-        </ul>
-      </section>
-
-      <section>
-        <h2>2. Purpose</h2>
-        <p>
-          We process data to run the tutorial pipeline, enforce credit limits,
-          provide your library, process payments, prevent abuse, and operate the
-          product.
-        </p>
-      </section>
-
-      <section>
-        <h2>3. Processors / infrastructure</h2>
-        <ul>
-          <li>Supabase — auth, database, file storage.</li>
-          <li>Vercel — web application hosting.</li>
-          <li>Modal — GPU transcription workers.</li>
-          <li>Wompi — payment processing (El Salvador).</li>
-        </ul>
-      </section>
-
-      <section>
-        <h2>4. Retention</h2>
-        <p>
-          Account and tutorial data are kept while your account is active. You may
-          request deletion of your account data by contacting us. Billing records
-          needed for reconciliation may be retained as required for operations.
-        </p>
-      </section>
-
-      <section>
-        <h2>5. Your rights</h2>
-        <p>
-          Depending on applicable law, you may request access, correction, or
-          deletion of personal data associated with your account. Contact us using
-          the email on your account.
-        </p>
-      </section>
-
-      <section>
-        <h2>6. Security</h2>
-        <p>
-          We use access controls (including row-level security) and do not store
-          payment card secrets on Pianissimo servers. No method is perfectly
-          secure; please protect your login.
-        </p>
-      </section>
-
+      <h2>2. Para qué</h2>
       <p>
-        See also <Link href="/terms">Terms</Link> and{" "}
-        <Link href="/refund">Refunds</Link>.
+        Para ejecutar el tutorial, aplicar los límites de créditos, mostrarte tu biblioteca, procesar pagos,
+        prevenir abusos y operar el producto.
       </p>
-      <AppFooter />
-    </main>
+
+      <h2>3. Proveedores e infraestructura</h2>
+      <ul>
+        <li>Supabase — autenticación, base de datos y almacenamiento de archivos.</li>
+        <li>Vercel — alojamiento de la aplicación web.</li>
+        <li>Modal — procesamiento con GPU de la transcripción.</li>
+        <li>Wompi — procesamiento de pagos (El Salvador).</li>
+      </ul>
+
+      <h2>4. Conservación</h2>
+      <p>
+        Los datos de cuenta y los tutoriales se conservan mientras tu cuenta esté activa. Los audios originales
+        se eliminan automáticamente pasadas 24 horas de procesarse (30 días si son vistas previas, para que
+        puedas desbloquear la canción completa). Puedes solicitar la eliminación de tu cuenta contactándonos.
+        Los registros de facturación necesarios para conciliación pueden conservarse por motivos operativos.
+      </p>
+
+      <h2>5. Tus derechos</h2>
+      <p>
+        Según la ley aplicable, puedes solicitar acceso, corrección o eliminación de los datos personales
+        asociados a tu cuenta. Contáctanos usando el correo de tu cuenta.
+      </p>
+
+      <h2>6. Seguridad</h2>
+      <p>
+        Usamos controles de acceso (incluida seguridad a nivel de fila) y no almacenamos secretos de tarjeta en
+        nuestros servidores. Ningún método es perfecto: protege tu acceso.
+      </p>
+    </LegalLayout>
   );
 }

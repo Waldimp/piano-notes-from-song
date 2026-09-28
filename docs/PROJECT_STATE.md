@@ -1,34 +1,35 @@
 # Estado del proyecto
 
-Actualizado: 2026-09-23
+Actualizado: 2026-09-27
 
 ## Fase actual
 
-**SUBSCRIPTIONS ARCHITECTURE READY (flag off)** — Practice/Plus webhook `IdSuscripcion` + period grants + daily reconcile. Mini Pack sandbox intacto. Cancel individual sigue limitación Wompi. Modal/player intactos.
+**ESTABILIZACIÓN PRE-BETA + REDISEÑO VISUAL** — deuda técnica cerrada (migraciones 0015/0016
+aplicadas, uploads huérfanos limpiados con cron, wake por `pg_cron`), **FREE = vista previa de
+60 s** procesada antes de la transcripción, y UI comercial nueva (Pianissimo, tipografía
+Fraunces/Manrope, biblioteca de tarjetas, pricing, cuenta, reproductor). Flags de
+producción sin cambio: `BILLING_ENABLED=true`, `WOMPI_EXPECT_PRODUCTIVE=false`,
+`BILLING_SUBSCRIPTIONS_ENABLED` sin definir (false).
 
 ### Estado operativo
 
-- Migrations 0002–0014 en producción; **0015** + **0016** listas para aplicar (0016: period_key cycle + grant race).
-- Mini Pack sandbox (`BILLING_ENABLED=true`, `WOMPI_EXPECT_PRODUCTIVE=false`).
-- Practice/Plus: código settlement listo; UI Coming soon; `BILLING_SUBSCRIPTIONS_ENABLED=false`.
-- Cron: `/api/billing/reconcile-subscriptions` diario (snapshot only).
-
-## Arquitectura billing
-
-```
-Wompi charge → webhook HMAC → IdSuscripcion / commerce_link
-  → TransaccionCompra S2S → settle (purchase OR subscription period grant)
-Daily reconcile → snapshot/status; NEVER invent grants
-```
-
-Detalle: [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md). DEC-017.
+- Migrations **0002–0017** en producción (0017: preview, cleanup, wake `pg_cron`).
+- Modal T4 redesplegado el 2026-09-27 con el recorte de preview (`piano_worker.preview`).
+- `pg_cron` `pianissimo_wake_dispatch` cada minuto (no-op sin trabajo); secretos en Vault.
+- Cron Vercel diario `/api/dispatch-wake` = wake de recuperación + limpieza de uploads.
+- Requests históricas en `error` (4) son residuos de E2E del 2026-09-21 y de un test en
+  vivo (`cancelled_beta_e2e*`, `test_cleanup`); la UI ya no muestra códigos internos.
+- Correo de Auth: integrado de Supabase (dev-only). Resend preparado (script + doc),
+  pendiente de dominio y API key.
 
 ## Último trabajo completado
 
-2026-09-23: Incorporar respuesta soporte Wompi (estados 0–4, IdSuscripcion, no cancel individual, no sandbox renewal). Settlement compartido + reconcile diario. Migration 0015.
-
-2026-09-21: Beta UX Pianissimo + tutorial polish.
+2026-09-27: migraciones 0015/0016/0017, limpieza de 9 uploads, wake pg_cron + re-wake desde
+el navegador, preview FREE (SQL + worker + UI + desbloqueo con crédito), rediseño completo,
+docs actualizados, test en vivo aislado con `PIANO_RUN_LIVE_TESTS=1`.
 
 ## Siguiente tarea
 
-Aplicar migration **0015** en Supabase. Canary real Practice/Plus solo tras decisión explícita (flags + negocio productivo). Cancel: evaluar one-link-per-sub en canary controlado.
+1. Dominio propio + Resend (`docs/AUTH_EMAIL_RESEND.md`) → registro/recuperación fiables.
+2. Cutover de Mini Pack a cobros reales cuando el negocio lo decida (`WOMPI_INTEGRATION.md`).
+3. Beta cerrada con 10–20 usuarios externos midiendo activación y conversión.

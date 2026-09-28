@@ -10,6 +10,9 @@ import type { DataSource, JobState, JobStatus, SongSummary } from "./types";
 /** Las URLs firmadas duran 12 h: una sesion larga de practica sin recargar. */
 const SIGNED_URL_SECONDS = 12 * 60 * 60;
 
+const SONG_COLUMNS =
+  "id,title,filename,duration,note_count,pedal_count,engine,created_at,preview_seconds,source_duration_seconds";
+
 /** Mismo criterio que el backend/worker: id seguro derivado del nombre. */
 function slugify(name: string): string {
   const stem = name.replace(/\.[^.]+$/, "");
@@ -23,6 +26,35 @@ interface RequestRow {
   song_id: string | null;
   error: string | null;
   created_at: string;
+  preview_seconds?: number | null;
+}
+
+interface SongRow {
+  id: string;
+  title: string;
+  filename: string;
+  duration: number;
+  note_count: number;
+  pedal_count: number;
+  engine: string;
+  created_at: string;
+  preview_seconds?: number | null;
+  source_duration_seconds?: number | null;
+}
+
+function toSongSummary(r: SongRow): SongSummary {
+  return {
+    id: r.id,
+    title: r.title,
+    filename: r.filename,
+    duration: Number(r.duration ?? 0),
+    note_count: r.note_count ?? 0,
+    pedal_count: r.pedal_count ?? 0,
+    engine: r.engine ?? "",
+    created_at: r.created_at,
+    preview_seconds: r.preview_seconds ?? null,
+    source_duration_seconds: r.source_duration_seconds ?? null,
+  };
 }
 
 function toJobState(r: RequestRow, queuePosition: number | null = null): JobState {
@@ -34,8 +66,11 @@ function toJobState(r: RequestRow, queuePosition: number | null = null): JobStat
     error: r.error,
     queuePosition,
     createdAt: r.created_at,
+    previewSeconds: r.preview_seconds ?? null,
   };
 }
+
+const REQUEST_COLUMNS = "id,filename,status,song_id,error,created_at,preview_seconds";
 
 export const cloudDataSource: DataSource = {
   kind: "cloud",
@@ -43,10 +78,16 @@ export const cloudDataSource: DataSource = {
   async listSongs(): Promise<SongSummary[]> {
     const { data, error } = await supabase()
       .from("songs")
-      .select("id,title,filename,duration,note_count,pedal_count,engine,created_at")
+      .select(SONG_COLUMNS)
       .order("created_at", { ascending: false });
     if (error) throw new Error(`No se pudo listar la biblioteca: ${error.message}`);
-    return data as SongSummary[];
+    return (data as SongRow[]).map(toSongSummary);
+  },
+
+  async getSong(id: string): Promise<SongSummary | null> {
+    const { data, error } = await supabase().from("songs").select(SONG_COLUMNS).eq("id", id).maybeSingle();
+    if (error || !data) return null;
+    return toSongSummary(data as SongRow);
   },
 
   async getTranscription(id: string): Promise<PianoTranscription> {
@@ -130,11 +171,7 @@ export const cloudDataSource: DataSource = {
 
   async getJob(jobId: string): Promise<JobState> {
     const sb = supabase();
-    const { data, error } = await sb
-      .from("requests")
-      .select("id,filename,status,song_id,error,created_at")
-      .eq("id", jobId)
-      .single();
+    const { data, error } = await sb.from("requests").select(REQUEST_COLUMNS).eq("id", jobId).single();
     if (error || !data) throw new Error("Solicitud no encontrada");
     const row = data as RequestRow;
 
@@ -153,7 +190,7 @@ export const cloudDataSource: DataSource = {
   async listJobs(): Promise<JobState[]> {
     const { data, error } = await supabase()
       .from("requests")
-      .select("id,filename,status,song_id,error,created_at")
+      .select(REQUEST_COLUMNS)
       .order("created_at", { ascending: false })
       .limit(20);
     if (error) throw new Error(`No se pudieron listar las solicitudes: ${error.message}`);

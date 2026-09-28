@@ -7,7 +7,9 @@ import AppFooter from "@/components/AppFooter";
 import AppHeader from "@/components/AppHeader";
 import { useAuth } from "@/components/AuthGate";
 import { type UsageInfo } from "@/components/UsageBanner";
+import { FREE_PREVIEW_SECONDS } from "@/lib/beta/preview";
 import { subscriptionStatusDisplayEs } from "@/lib/billing/wompiSubscriptionStatus";
+import { planLabel } from "@/lib/userMessages";
 import { supabase } from "@/lib/supabase";
 
 type SubRow = {
@@ -16,30 +18,54 @@ type SubRow = {
   current_period_starts_at?: string | null;
   current_period_ends_at: string | null;
   next_billing_at?: string | null;
-  cancel_at_period_end?: boolean;
 };
 
-function planLabel(code: string): string {
-  switch (code) {
-    case "free":
-      return "Gratis (FREE)";
-    case "mini":
-      return "Mini Pack";
-    case "practice":
-      return "Practice";
-    case "plus":
-      return "Plus";
+type PurchaseRow = {
+  id: string;
+  product_code: string;
+  amount_usd: number;
+  credits: number;
+  status: string;
+  created_at: string;
+};
+
+function productName(code: string): string {
+  if (code === "mini_pack") return "Mini Pack";
+  if (code === "practice") return "Practice";
+  if (code === "plus") return "Plus";
+  return "Compra";
+}
+
+function purchaseStatus(status: string): { label: string; cls: string } {
+  switch (status) {
+    case "paid":
+      return { label: "Pagada", cls: "ok" };
+    case "pending":
+      return { label: "Pendiente", cls: "warn" };
+    case "refunded":
+      return { label: "Reembolsada", cls: "info" };
+    case "failed":
+    case "cancelled":
+      return { label: "No completada", cls: "" };
     default:
-      return code;
+      return { label: "En revisión", cls: "" };
+  }
+}
+
+function fmtDate(iso?: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return "—";
   }
 }
 
 export default function AccountPage() {
-  const { email } = useAuth();
+  const { email, signOut } = useAuth();
   const [usage, setUsage] = useState<UsageInfo | null>(null);
   const [subs, setSubs] = useState<SubRow[]>([]);
-  const [billingEnabled, setBillingEnabled] = useState(false);
-  const [subscriptionsEnabled, setSubscriptionsEnabled] = useState(false);
+  const [purchases, setPurchases] = useState<PurchaseRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,59 +74,31 @@ export default function AccountPage() {
       const token = data.session?.access_token;
       if (!token) return;
       const [usageRes, billingRes] = await Promise.all([
-        fetch("/api/usage", {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        }),
-        fetch("/api/billing/status", {
-          headers: { Authorization: `Bearer ${token}` },
-          cache: "no-store",
-        }),
+        fetch("/api/usage", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+        fetch("/api/billing/status", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
       ]);
       const usageBody = await usageRes.json().catch(() => ({}));
       if (!usageRes.ok) {
-        setError(usageBody.error ?? "No pudimos cargar tu cuenta");
+        setError("No pudimos cargar tu cuenta. Inténtalo de nuevo.");
         return;
       }
       setUsage(usageBody.usage as UsageInfo);
-
       const billingBody = await billingRes.json().catch(() => ({}));
       if (billingRes.ok) {
-        setBillingEnabled(Boolean(billingBody.billing_enabled));
-        setSubscriptionsEnabled(Boolean(billingBody.subscriptions_enabled));
         setSubs((billingBody.subscriptions as SubRow[]) ?? []);
+        setPurchases((billingBody.purchases as PurchaseRow[]) ?? []);
       }
     })();
   }, []);
 
-  const activeSub = subs.find(
-    (s) =>
-      s.status === "active" ||
-      s.status === "past_due" ||
-      s.status === "suspended" ||
-      s.status === "pending",
-  );
-
-  const durationLabel =
-    usage != null
-      ? usage.max_duration_seconds <= 60
-        ? "1 minuto"
-        : `${Math.round(usage.max_duration_seconds / 60)} minutos`
-      : "—";
+  const activeSub = subs.find((s) => ["active", "past_due", "suspended", "pending"].includes(s.status));
+  const isFree = usage?.plan_code === "free";
+  const used = usage?.credits_settled ?? 0;
+  const remaining = usage?.credit_balance ?? 0;
 
   return (
-    <main className="home">
-      <AppHeader title="Cuenta" subtitle="Revisa tu plan, tutoriales y facturación." />
-
-      <section className="account-identity" aria-labelledby="identity-title">
-        <h2 id="identity-title">Identidad</h2>
-        <p>
-          Correo de la sesión actual: <strong>{email ?? "—"}</strong>
-        </p>
-        <p className="subtitle">
-          Si ves otra cuenta de la esperada, cierra sesión e inicia con el correo correcto.
-        </p>
-      </section>
+    <main className="shell">
+      <AppHeader title="Tu cuenta" subtitle="Plan, tutoriales disponibles y pagos." />
 
       {error && (
         <div className="notice" role="alert">
@@ -108,70 +106,120 @@ export default function AccountPage() {
         </div>
       )}
 
-      {usage && (
-        <section className="account-section" aria-labelledby="usage-title">
-          <h2 id="usage-title">Plan y tutoriales</h2>
-          <ul className="account-list">
-            <li>Plan: {planLabel(usage.plan_code)}</li>
-            <li>Tutoriales disponibles: {usage.credit_balance}</li>
-            <li>Tutoriales usados: {usage.credits_settled}</li>
-            <li>Duración máxima por canción: {durationLabel}</li>
-          </ul>
-          {usage.credit_balance <= 0 && (
-            <p>
-              Sin tutoriales restantes. <Link href="/pricing">Ver precios</Link>
+      <div className="account-grid">
+        <section className="card accent" aria-labelledby="plan-title">
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <div>
+              <p className="eyebrow">Tu plan</p>
+              <h2 id="plan-title">{usage ? planLabel(usage.plan_code) : "—"}</h2>
+            </div>
+            <Link className="btn small primary" href="/pricing">
+              {isFree ? "Mejorar plan" : "Conseguir más"}
+            </Link>
+          </div>
+          <div className="stat-row">
+            <div className="stat">
+              <div className="v">{usage ? remaining : "—"}</div>
+              <div className="k">tutoriales disponibles</div>
+            </div>
+            <div className="stat">
+              <div className="v">{usage ? used : "—"}</div>
+              <div className="k">tutoriales creados</div>
+            </div>
+            <div className="stat">
+              <div className="v">{usage ? (isFree ? `${FREE_PREVIEW_SECONDS} s` : `${Math.round(usage.max_duration_seconds / 60)} min`) : "—"}</div>
+              <div className="k">{isFree ? "vista previa por canción" : "máximo por canción"}</div>
+            </div>
+          </div>
+          {isFree && (
+            <p className="muted small" style={{ marginTop: "0.9rem" }}>
+              Con el plan gratis procesamos los primeros {FREE_PREVIEW_SECONDS} segundos de cada canción. Un Mini
+              Pack desbloquea canciones completas de hasta 10 minutos.
             </p>
           )}
         </section>
-      )}
 
-      <section className="account-section" aria-labelledby="billing-title">
-        <h2 id="billing-title">Facturación</h2>
-        <p className="subtitle">
-          Pagos puntuales: {billingEnabled ? "activos" : "no disponibles en este entorno"}.
-          Suscripciones mensuales: {subscriptionsEnabled ? "activas" : "próximamente"}.
-        </p>
+        <section className="card" aria-labelledby="identity-title">
+          <p className="eyebrow">Sesión</p>
+          <h2 id="identity-title" style={{ fontSize: "1.2rem" }}>
+            {email ?? "—"}
+          </h2>
+          <p className="muted small" style={{ marginTop: "0.5rem" }}>
+            ¿No es tu cuenta? Cierra sesión y entra con el correo correcto.
+          </p>
+          <div className="row" style={{ marginTop: "1rem" }}>
+            <button type="button" className="btn small" onClick={() => void signOut()}>
+              Cerrar sesión
+            </button>
+          </div>
+          <dl className="kv" style={{ marginTop: "1.25rem" }}>
+            <dt>Términos</dt>
+            <dd>
+              <Link href="/terms">Ver</Link>
+            </dd>
+            <dt>Privacidad</dt>
+            <dd>
+              <Link href="/privacy">Ver</Link>
+            </dd>
+            <dt>Reembolsos</dt>
+            <dd>
+              <Link href="/refund">Ver</Link>
+            </dd>
+          </dl>
+        </section>
+      </div>
+
+      <section className="card" style={{ marginTop: "1rem" }} aria-labelledby="billing-title">
+        <p className="eyebrow">Pagos</p>
+        <h2 id="billing-title" style={{ fontSize: "1.25rem" }}>
+          Compras y suscripción
+        </h2>
+
         {activeSub ? (
-          <ul className="account-list">
-            <li>Estado: {subscriptionStatusDisplayEs(activeSub.status)}</li>
-            <li>Producto: {activeSub.product_code === "practice" ? "Practice" : activeSub.product_code === "plus" ? "Plus" : activeSub.product_code}</li>
-            <li>
-              Periodo actual:{" "}
-              {activeSub.current_period_starts_at
-                ? new Date(activeSub.current_period_starts_at).toLocaleDateString()
-                : "—"}{" "}
-              →{" "}
-              {activeSub.current_period_ends_at
-                ? new Date(activeSub.current_period_ends_at).toLocaleDateString()
-                : "—"}
-            </li>
+          <dl className="kv">
+            <dt>Suscripción</dt>
+            <dd>{productName(activeSub.product_code)}</dd>
+            <dt>Estado</dt>
+            <dd>{subscriptionStatusDisplayEs(activeSub.status)}</dd>
+            <dt>Periodo</dt>
+            <dd>
+              {fmtDate(activeSub.current_period_starts_at)} → {fmtDate(activeSub.current_period_ends_at)}
+            </dd>
             {activeSub.next_billing_at && (
-              <li>
-                Próximo cobro (estimado):{" "}
-                {new Date(activeSub.next_billing_at).toLocaleDateString()}
-              </li>
+              <>
+                <dt>Próximo cobro</dt>
+                <dd>{fmtDate(activeSub.next_billing_at)}</dd>
+              </>
             )}
-          </ul>
+          </dl>
         ) : (
-          <p>No tienes suscripción mensual activa.</p>
+          <p className="muted" style={{ marginTop: "0.5rem" }}>
+            No tienes suscripción mensual. Las suscripciones Practice y Plus llegarán pronto.
+          </p>
         )}
-        <p className="subtitle">
-          Cancelación individual no está disponible en Wompi. Contáctanos desde el pie de página
-          si necesitas ayuda. Manage/Cancel permanece deshabilitado.
-        </p>
-        <Link className="btn small" href="/pricing">
-          Ver precios
-        </Link>
-      </section>
 
-      <section className="account-section" aria-labelledby="legal-title">
-        <h2 id="legal-title">Legal</h2>
-        <p>
-          <Link href="/terms">Términos</Link>
-          {" · "}
-          <Link href="/privacy">Privacidad</Link>
-          {" · "}
-          <Link href="/refund">Reembolsos</Link>
+        {purchases.length > 0 && (
+          <ul className="stack" style={{ listStyle: "none", padding: 0, marginTop: "1rem" }}>
+            {purchases.map((p) => {
+              const st = purchaseStatus(p.status);
+              return (
+                <li key={p.id} className="row" style={{ justifyContent: "space-between", padding: "0.5rem 0", borderTop: "1px solid var(--border)" }}>
+                  <span>
+                    <strong>{productName(p.product_code)}</strong>
+                    <span className="muted small"> · {p.credits} tutoriales · {fmtDate(p.created_at)}</span>
+                  </span>
+                  <span className="row">
+                    <span>${Number(p.amount_usd).toFixed(2)}</span>
+                    <span className={`pill ${st.cls}`}>{st.label}</span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <p className="muted small" style={{ marginTop: "1rem" }}>
+          ¿Necesitas ayuda con un pago? Escríbenos desde el enlace de contacto al pie de la página.
         </p>
       </section>
 

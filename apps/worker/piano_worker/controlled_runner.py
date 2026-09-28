@@ -9,6 +9,7 @@ from typing import Any
 
 from .controlled import DispatchReceipt, claim_exact, redact_error, rpc
 from .controlled_publisher import CompensablePublisher
+from .preview import fetch_preview_seconds, prepare_transcription_input
 
 UPLOADS_BUCKET = "uploads"
 
@@ -33,8 +34,12 @@ def process_dispatch(client: Any, engine: Any, receipt: DispatchReceipt, worker_
                 "p_lease_token": claim.lease_token, "p_extend_seconds": 720,
             })
 
+            # FREE preview: trim BEFORE transcription so the GPU only sees N seconds.
+            preview_seconds = fetch_preview_seconds(client, claim.request_id)
+            transcription_input = prepare_transcription_input(input_path, preview_seconds)
+
             inference_started = time.perf_counter()
-            result = transcribe_file(input_path, engine=engine, output_root=root / "output")
+            result = transcribe_file(transcription_input, engine=engine, output_root=root / "output")
             inference_s = time.perf_counter() - inference_started
             rpc(client, "heartbeat_request", {
                 "p_request_id": claim.request_id, "p_attempt_id": claim.attempt_id,
@@ -49,6 +54,7 @@ def process_dispatch(client: Any, engine: Any, receipt: DispatchReceipt, worker_
             metrics = {
                 "download_s": download_s, "pipeline_s": inference_s,
                 "publish_s": publish_s, "worker_kind": worker_kind,
+                "preview_seconds": preview_seconds,
             }
             # Canonical objects remain hidden from authenticated Storage access
             # unless the songs row exists; remove private staging copies before

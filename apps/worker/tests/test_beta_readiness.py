@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -52,6 +53,10 @@ def test_beta_limits_config_is_centralized():
 
 
 @pytest.mark.skipif(not _env("SUPABASE_SERVICE_ROLE_KEY"), reason="no service role")
+@pytest.mark.skipif(
+    os.environ.get("PIANO_RUN_LIVE_TESTS") != "1",
+    reason="Test en vivo contra Supabase: muta entitlements/requests. Ejecutar solo con PIANO_RUN_LIVE_TESTS=1.",
+)
 def test_live_rls_and_credit_gates():
     base = _env("SUPABASE_URL")
     service = _env("SUPABASE_SERVICE_ROLE_KEY")
@@ -148,14 +153,14 @@ def test_live_rls_and_credit_gates():
         assert st == 200
         assert check and check[0]["title"] != "hacked"
 
-    # Duration gate via authorize_beta_request (FREE max = 60s; no Modal)
+    # FREE preview (0017): a 120 s upload is ACCEPTED as a 60 s preview, never rejected
     http(
         f"{base}/rest/v1/rpc/admin_set_account_entitlement",
         method="POST",
         headers={"apikey": service, "Authorization": f"Bearer {service}"},
         body={"p_user_id": user_a, "p_plan_code": "free", "p_credit_balance": 2},
     )
-    st, denied = http(
+    st, preview = http(
         f"{base}/rest/v1/rpc/authorize_beta_request",
         method="POST",
         headers={"apikey": anon, "Authorization": f"Bearer {tok_a}"},
@@ -166,8 +171,24 @@ def test_live_rls_and_credit_gates():
         },
     )
     assert st == 200
-    assert denied.get("ok") is False
-    assert denied.get("code") == "duration_exceeded"
+    assert preview.get("ok") is True
+    assert preview.get("preview_seconds") == 60
+    fake_request_id = preview.get("request_id")
+
+    # Neutralize the fake request before any worker can see it: terminal state,
+    # outbox closed via the same guarded path the operator uses, credit released.
+    http(
+        f"{base}/rest/v1/requests?id=eq.{fake_request_id}",
+        method="PATCH",
+        headers={"apikey": service, "Authorization": f"Bearer {service}", "Prefer": "return=minimal"},
+        body={"status": "error", "error": "test_cleanup", "failure_code": "test_cleanup"},
+    )
+    http(
+        f"{base}/rest/v1/rpc/release_user_credit_for_request",
+        method="POST",
+        headers={"apikey": service, "Authorization": f"Bearer {service}"},
+        body={"p_request_id": fake_request_id},
+    )
 
     # Clear any leftover active rows so the credit gate is observable
     http(

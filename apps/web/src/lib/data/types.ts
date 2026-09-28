@@ -9,6 +9,10 @@ export interface SongSummary {
   pedal_count: number;
   engine: string;
   created_at: string;
+  /** Segundos procesados cuando el tutorial es una vista previa (FREE). null = completo. */
+  preview_seconds: number | null;
+  /** Duración real del audio subido (aunque el tutorial sea preview). */
+  source_duration_seconds: number | null;
 }
 
 export type JobStatus = "queued" | "processing" | "done" | "error";
@@ -21,6 +25,8 @@ export interface JobState {
   error: string | null;
   queuePosition: number | null;
   createdAt: string;
+  /** Preview solicitada (FREE) — se muestra desde la cola. */
+  previewSeconds: number | null;
 }
 
 /**
@@ -30,6 +36,8 @@ export interface JobState {
 export interface DataSource {
   readonly kind: "local" | "cloud";
   listSongs(): Promise<SongSummary[]>;
+  /** Metadatos de una canción (título, duración, preview). */
+  getSong(id: string): Promise<SongSummary | null>;
   getTranscription(id: string): Promise<PianoTranscription>;
   getAudioUrl(id: string): Promise<string>;
   renameSong(id: string, title: string): Promise<void>;

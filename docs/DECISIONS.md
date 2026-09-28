@@ -133,3 +133,33 @@ Este registro resume decisiones transversales. Las decisiones técnicas históri
 **Decisión:** Tras respuesta de soporte Wompi: mapear `EstadoSuscripcion` 0–4; correlacionar webhooks recurrentes por `IdSuscripcion`; settlement compartido `processVerifiedSubscriptionPayment` → `grant_subscription_period_credits`; reconciliación diaria secundaria sin auto-grant; arquitectura **WEBHOOK PRIMARY + DAILY RECONCILIATION SECONDARY**. Cancel individual permanece **CANCELLATION PROVIDER LIMITATION** (one-link-per-subscription candidato, no probado). Flags productivos sin cambio (`BILLING_SUBSCRIPTIONS_ENABLED=false`, `WOMPI_EXPECT_PRODUCTIVE=false`).
 **Motivo:** Wompi cobra; Pianissimo verifica/contabiliza/reconcilia. Sin simulación sandbox de renovación; E2E real solo en canary futuro.
 **Estado:** Vigente. Ver [`WOMPI_INTEGRATION.md`](WOMPI_INTEGRATION.md).
+
+## DEC-018
+
+**Fecha:** 2026-09-27
+**Decisión:** El plan FREE acepta cualquier canción válida y procesa únicamente los primeros 60 segundos (vista previa), recortando el audio con FFmpeg **antes** de la transcripción. Los planes de pago conservan sus límites (10 min, rechazo `duration_exceeded`). El upload original de una preview se conserva 30 días para poder "desbloquear" la canción completa con un crédito de un plan de pago (`POST /api/unlock-song`).
+**Motivo:** Rechazar canciones largas impedía probar el producto con la música que la gente realmente quiere aprender; procesar solo 60 s mantiene el costo GPU de la preview en ~1/3 del de una canción y crea un CTA natural hacia Mini Pack.
+**Alternativas:** preview de 30 s (menos útil para evaluar calidad); transcribir completo y ocultar (gasta GPU en algo que no se muestra).
+**Estado:** Vigente (migración 0017, `piano_worker.preview`, Modal redesplegado).
+
+## DEC-019
+
+**Fecha:** 2026-09-27
+**Decisión:** Añadir dos fuentes de wake entre el inmediato y el cron diario: (a) el navegador re-despierta al despachador cada 30 s mientras su canción siga en cola; (b) `pg_cron` ejecuta cada minuto `wake_dispatch_if_pending()`, que solo llama a Vercel (`net.http_post`) cuando hay outbox pendiente elegible y `mode=modal` sin kill switch; secretos en Supabase Vault. Sin Database Webhook ni polling en Modal.
+**Motivo:** Si el wake de `create-request` fallaba, el usuario esperaba hasta el cron diario. `pg_cron` + `pg_net` ya existen en el proyecto, no añaden costo y respetan el principio "Modal no hace polling".
+**Alternativas:** Database Webhook (más rápido, pero expone un endpoint por evento y requiere HMAC por fila); polling en Modal (rechazado por costo).
+**Estado:** Vigente y verificado (respuestas 200 `idle` registradas en `net._http_response`).
+
+## DEC-020
+
+**Fecha:** 2026-09-27
+**Decisión:** Limpieza automática de `uploads`: cada día, el cron `/api/dispatch-wake` borra objetos de más de 24 h que no necesite ninguna solicitud viva, salvo previews FREE de menos de 30 días. La decisión está en SQL (`list_expired_uploads`); el borrado usa la Storage API.
+**Motivo:** Storage Free es de 1 GB; los uploads se acumulaban (9 huérfanos tras los E2E) y el diseño original prometía cleanup diferido no implementado.
+**Estado:** Vigente; primera pasada manual ejecutada el 2026-09-27.
+
+## DEC-021
+
+**Fecha:** 2026-09-27
+**Decisión:** Rediseño visual completo (identidad Pianissimo: ébano cálido + dorado, Fraunces/Manrope, biblioteca de tarjetas con "Abrir tutorial" como acción primaria, pricing comercial, reproductor como pieza central) sin cambiar arquitectura ni backend, y sin secciones técnicas en producción (el panel de cola solo existe en modo local).
+**Motivo:** La UI anterior parecía un MVP generado; para beta cerrada hace falta credibilidad y jerarquía visual.
+**Estado:** Vigente. Correo de producción con Resend queda preparado pero pendiente de dominio (DEC pendiente de cierre en `AUTH_EMAIL_RESEND.md`).

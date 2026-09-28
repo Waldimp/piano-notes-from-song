@@ -1,47 +1,37 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import AppFooter from "@/components/AppFooter";
 import AppHeader from "@/components/AppHeader";
 import CloudQueuePanel from "@/components/CloudQueuePanel";
 import OnboardingBanner from "@/components/OnboardingBanner";
+import SongCard, { PendingCard } from "@/components/SongCard";
 import UploadBox from "@/components/UploadBox";
-import UsageBanner from "@/components/UsageBanner";
-import { type JobState, type SongSummary, getDataSource } from "@/lib/data";
+import UsageBanner, { useUsage } from "@/components/UsageBanner";
+import { unlockDecision } from "@/lib/beta/preview";
+import { type SongSummary, getDataSource } from "@/lib/data";
 import { API_URL } from "@/lib/data/local";
-import { jobStatusLabel } from "@/lib/userMessages";
+import { requestImmediateDispatchWake } from "@/lib/data/wake-after-submit";
+import { isCloudMode, supabase } from "@/lib/supabase";
+import { mapCreateRequestError } from "@/lib/userMessages";
 
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return "";
-  }
-}
+/** Mientras haya canciones en cola, re-despertar al worker como máximo cada 30 s. */
+const REWAKE_INTERVAL_MS = 30_000;
 
 export default function Home() {
   const data = getDataSource();
+  const router = useRouter();
   const [items, setItems] = useState<SongSummary[] | null>(null);
-  const [jobs, setJobs] = useState<JobState[]>([]);
+  const [jobs, setJobs] = useState<Awaited<ReturnType<typeof data.listJobs>>>([]);
   const [error, setError] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [newTitle, setNewTitle] = useState("");
-  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [publishing, setPublishing] = useState<string | null>(null);
   const [cloudReady, setCloudReady] = useState(false);
   const [usageTick, setUsageTick] = useState(0);
+  const { usage } = useUsage(usageTick);
+  const lastWakeRef = useRef(0);
 
   const reload = useCallback(() => {
     data
@@ -64,18 +54,33 @@ export default function Home() {
       .catch(() => {});
   }, [data.kind]);
 
-  useEffect(() => {
-    if (data.kind !== "cloud") return;
-    if (!jobs.some((j) => j.status === "queued" || j.status === "processing")) return;
-    const t = setInterval(reload, 10000);
-    return () => clearInterval(t);
-  }, [data.kind, jobs, reload]);
+  const hasPending = jobs.some((j) => j.status === "queued" || j.status === "processing");
+  const hasQueued = jobs.some((j) => j.status === "queued");
 
+  // Nube: refrescar mientras hay trabajo y, si algo sigue en cola, volver a
+  // despertar al worker (fallback del wake inmediato; el cron sigue siendo la red final).
+  useEffect(() => {
+    if (data.kind !== "cloud" || !hasPending) return;
+    const t = setInterval(() => {
+      reload();
+      if (hasQueued && Date.now() - lastWakeRef.current > REWAKE_INTERVAL_MS) {
+        lastWakeRef.current = Date.now();
+        void requestImmediateDispatchWake(supabase());
+      }
+    }, 10_000);
+    return () => clearInterval(t);
+  }, [data.kind, hasPending, hasQueued, reload]);
+
+  // Tarjetas de trabajo: en curso, listas sin canción visible aún, y errores recientes
+  // (un fallo de hace días es ruido: el crédito ya se devolvió).
   const pendingJobs = useMemo(() => {
     const songIds = new Set(items?.map((s) => s.id) ?? []);
-    return jobs.filter(
-      (j) => !(j.status === "done" && j.transcriptionId && songIds.has(j.transcriptionId)),
-    );
+    const recent = Date.now() - 48 * 60 * 60 * 1000;
+    return jobs.filter((j) => {
+      if (j.status === "done") return !(j.transcriptionId && songIds.has(j.transcriptionId));
+      if (j.status === "error") return new Date(j.createdAt).getTime() > recent;
+      return true;
+    });
   }, [items, jobs]);
 
   const showEmpty =
@@ -83,17 +88,38 @@ export default function Home() {
       ? items !== null && items.length === 0 && pendingJobs.length === 0
       : items !== null && items.length === 0;
 
-  const submitRename = async (id: string) => {
-    const title = newTitle.trim();
-    setRenaming(null);
-    if (!title) return;
+  const rename = async (id: string, title: string) => {
     await data.renameSong(id, title).catch((e: Error) => setError(e.message));
     reload();
   };
 
-  const submitDelete = async (id: string) => {
-    setConfirmingDelete(null);
+  const remove = async (id: string) => {
     await data.deleteSong(id).catch((e: Error) => setError(e.message));
+    reload();
+  };
+
+  const unlock = async (song: SongSummary) => {
+    setNotice(null);
+    const decision = unlockDecision(song, usage?.plan_code ?? "free", usage?.credit_balance ?? 0);
+    if (decision.action !== "unlock") {
+      router.push("/pricing");
+      return;
+    }
+    const { data: session } = await supabase().auth.getSession();
+    const token = session.session?.access_token;
+    if (!token) return;
+    const res = await fetch("/api/unlock-song", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ song_id: song.id }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setError(mapCreateRequestError({ code: body.code, message: body.message, error: body.error, status: res.status }));
+      return;
+    }
+    setNotice(`Procesando "${song.title}" completa. Usaste 1 tutorial; te quedan ${decision.creditsAfter}.`);
+    setUsageTick((n) => n + 1);
     reload();
   };
 
@@ -113,162 +139,80 @@ export default function Home() {
     }
   };
 
+  const total = (items?.length ?? 0) + pendingJobs.length;
+
   return (
-    <main className="home">
+    <main className="shell">
       <AppHeader
         title="Tus canciones"
-        subtitle={
-          data.kind === "cloud"
-            ? "Sube audio de piano y abre el tutorial cuando esté listo."
-            : "Biblioteca local en esta PC"
-        }
+        subtitle={isCloudMode ? "Sube un audio de piano y practícalo con notas que caen." : "Biblioteca local en esta PC"}
+        actions={isCloudMode ? <UsageBanner refreshKey={usageTick} /> : undefined}
       />
 
-      {data.kind === "cloud" && <OnboardingBanner />}
-
-      <UsageBanner refreshKey={usageTick} />
       <UploadBox
+        usage={usage}
         onSubmitted={() => {
           reload();
           setUsageTick((n) => n + 1);
         }}
       />
 
+      {isCloudMode && <OnboardingBanner />}
+
       {error && (
-        <div className="notice" role="alert">
-          <p style={{ margin: 0 }}>{error}</p>
-          {data.kind === "local" && (
-            <p style={{ margin: "0.5rem 0 0" }}>
-              ¿Está corriendo el backend local? Arráncalo desde la terminal del proyecto.
-            </p>
-          )}
+        <div className="notice" role="alert" style={{ marginTop: "1rem" }}>
+          {error}
+          {data.kind === "local" && " ¿Está corriendo el backend local?"}
+        </div>
+      )}
+      {notice && (
+        <div className="notice gold" role="status" style={{ marginTop: "1rem" }}>
+          {notice}
         </div>
       )}
 
       {showEmpty && (
-        <div className="empty-state">
-          <p className="empty-state-title">No tienes canciones todavía</p>
-          <p className="subtitle">
-            Sube un audio arriba para que Pianissimo cree tu primer tutorial interactivo.
-          </p>
+        <div className="empty" style={{ marginTop: "2rem" }}>
+          <h3>Tu biblioteca está vacía</h3>
+          <p>Sube tu primera canción y en un minuto tendrás un tutorial interactivo.</p>
         </div>
       )}
 
-      {(pendingJobs.length > 0 || (items && items.length > 0)) && (
-        <ul className="song-list" aria-label="Tus canciones">
-          {pendingJobs.map((j) => (
-            <li key={`job-${j.id}`} className="song-item song-item-pending">
-              <div className="song-link" style={{ color: "var(--text)" }}>
-                <span className="song-title">{j.filename}</span>
-                <span className="song-meta">
-                  <span className={`status-pill status-${j.status}`}>
-                    {jobStatusLabel(j.status)}
-                  </span>
-                  {j.createdAt ? ` · ${formatDate(j.createdAt)}` : ""}
-                </span>
-              </div>
-              {j.status === "error" ? (
-                <span className="song-actions">
-                  <span className="subtitle" style={{ fontSize: "0.85rem" }}>
-                    {j.error && j.error.length < 120
-                      ? j.error
-                      : "Algo falló al analizar esta canción. Puedes subirla de nuevo."}
-                  </span>
-                </span>
-              ) : j.status === "done" && j.transcriptionId ? (
-                <Link className="btn small active" href={`/tutorial/${j.transcriptionId}`}>
-                  Abrir tutorial
-                </Link>
-              ) : (
-                <span className="subtitle" style={{ fontSize: "0.85rem" }}>
-                  Te avisaremos aquí cuando esté listo.
-                </span>
-              )}
-            </li>
-          ))}
-
-          {items?.map((song) => (
-            <li key={song.id} className="song-item">
-              {renaming === song.id ? (
-                <form
-                  className="rename-form"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void submitRename(song.id);
-                  }}
-                >
-                  <input
-                    className="input"
-                    autoFocus
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    aria-label="Nuevo título"
-                  />
-                  <button type="submit" className="btn small active">
-                    Guardar
-                  </button>
-                  <button type="button" className="btn small" onClick={() => setRenaming(null)}>
-                    Cancelar
-                  </button>
-                </form>
-              ) : (
-                <>
-                  <Link href={`/tutorial/${song.id}`} className="song-link">
-                    <span className="song-title">{song.title}</span>
-                    <span className="song-meta">
-                      <span className="status-pill status-ready">Lista</span>
-                      {" · "}
-                      {formatDuration(song.duration)}
-                      {song.created_at ? ` · ${formatDate(song.created_at)}` : ""}
-                    </span>
-                  </Link>
-                  {confirmingDelete === song.id ? (
-                    <span className="song-actions">
-                      <button className="btn small danger" onClick={() => void submitDelete(song.id)}>
-                        Eliminar
-                      </button>
-                      <button className="btn small" onClick={() => setConfirmingDelete(null)}>
-                        Cancelar
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="song-actions">
-                      <Link className="btn small active" href={`/tutorial/${song.id}`}>
-                        Abrir tutorial
-                      </Link>
-                      {data.kind === "local" && cloudReady && (
-                        <button
-                          className="btn small"
-                          disabled={publishing === song.id}
-                          onClick={() => void publish(song)}
-                        >
-                          {publishing === song.id ? "Publicando…" : "Publicar"}
-                        </button>
-                      )}
-                      <button
-                        className="btn small"
-                        onClick={() => {
-                          setNewTitle(song.title);
-                          setRenaming(song.id);
-                        }}
-                      >
-                        Renombrar
-                      </button>
-                      <button className="btn small" onClick={() => setConfirmingDelete(song.id)}>
-                        Eliminar
-                      </button>
-                    </span>
-                  )}
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
+      {total > 0 && (
+        <>
+          <div className="library-head">
+            <h2>Biblioteca</h2>
+            <span className="count">
+              {total} {total === 1 ? "canción" : "canciones"}
+            </span>
+          </div>
+          <ul className="library" aria-label="Tus canciones">
+            {pendingJobs.map((j) => (
+              <PendingCard key={`job-${j.id}`} job={j} />
+            ))}
+            {items?.map((song) => (
+              <SongCard
+                key={song.id}
+                song={song}
+                onRename={rename}
+                onDelete={remove}
+                onUnlock={isCloudMode ? unlock : undefined}
+                extraActions={
+                  data.kind === "local" && cloudReady ? (
+                    <button role="menuitem" type="button" disabled={publishing === song.id} onClick={() => void publish(song)}>
+                      {publishing === song.id ? "Publicando…" : "Publicar en la nube"}
+                    </button>
+                  ) : undefined
+                }
+              />
+            ))}
+          </ul>
+        </>
       )}
 
       {data.kind === "local" && cloudReady && <CloudQueuePanel onProcessed={reload} />}
 
-      {data.kind === "cloud" && <AppFooter />}
+      {isCloudMode && <AppFooter />}
     </main>
   );
 }
