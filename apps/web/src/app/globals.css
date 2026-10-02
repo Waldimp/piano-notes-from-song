@@ -697,11 +697,8 @@ code {
 .brand-mark {
   display: inline-grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  padding: 4px;
-  border-radius: 50%;
-  background: #e9ecdc;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
 }
 .brand-mark .logo {
