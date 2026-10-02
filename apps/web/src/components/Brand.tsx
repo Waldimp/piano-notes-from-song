@@ -2,26 +2,18 @@ import Link from "next/link";
 
 import { SITE_NAME } from "@/lib/site";
 
-/** Marca gráfica: cinco teclas con una dorada (la nota que cae). */
-export function BrandMark({ size = 30 }: { size?: number }) {
+/** Marca gráfica: piano de cola en línea, trazo carob, con una nota matcha. */
+export function BrandMark({ size = 34 }: { size?: number }) {
   return (
-    <svg
-      className="brand-mark"
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <rect width="32" height="32" rx="8" fill="#1a1619" />
-      <rect x="5" y="14" width="4.2" height="13" rx="1.2" fill="#f6f1e7" />
-      <rect x="10.4" y="14" width="4.2" height="13" rx="1.2" fill="#f6f1e7" />
-      <rect x="15.8" y="14" width="4.2" height="13" rx="1.2" fill="#e5c07b" />
-      <rect x="21.2" y="14" width="4.2" height="13" rx="1.2" fill="#f6f1e7" />
-      <rect x="26.6" y="14" width="0.4" height="13" fill="#f6f1e7" opacity="0.4" />
-      <rect x="15.8" y="4" width="4.2" height="8" rx="1.2" fill="#f2d9a0" />
-      <rect x="8.2" y="14" width="2.4" height="8" rx="0.8" fill="#0b0a0c" />
-      <rect x="19" y="14" width="2.4" height="8" rx="0.8" fill="#0b0a0c" />
+    <svg className="brand-mark" width={size} height={size} viewBox="0 0 40 40" fill="none" aria-hidden="true" focusable="false">
+      <circle cx="20" cy="20" r="19" fill="#e9ecdc" />
+      <g stroke="#725c3a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 12 C 25 9, 31 10, 32 15 L 29 23 L 20 20 Z" />
+        <path d="M8 20 L 20 20 L 29 23 L 29 27 L 8 27 Z" />
+        <path d="M10 27 L 10 31 M19 27 L 19 31 M27 27 L 27 31" />
+      </g>
+      <circle cx="13" cy="12" r="2.6" fill="#809671" />
+      <path d="M15.4 12 L 15.4 5.5" stroke="#809671" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   );
 }

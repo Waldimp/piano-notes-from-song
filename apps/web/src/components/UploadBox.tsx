@@ -8,10 +8,10 @@ import { ALLOWED_AUDIO_EXTENSIONS, MAX_UPLOAD_BYTES } from "@/lib/beta/limits";
 import { FREE_PREVIEW_SECONDS } from "@/lib/beta/preview";
 import { getDataSource } from "@/lib/data";
 import type { UsageInfo } from "@/components/UsageBanner";
+import { CloudUpload } from "@/components/soft/Illustrations";
 
 const ACCEPT_LIST = [...ALLOWED_AUDIO_EXTENSIONS].join(", ");
 const MAX_MB = Math.round(MAX_UPLOAD_BYTES / (1024 * 1024));
-const WAVE = [40, 70, 100, 60, 85, 45, 90, 55];
 
 type Phase =
   | { kind: "idle" }
@@ -112,11 +112,7 @@ export default function UploadBox({ usage, onSubmitted }: { usage: UsageInfo | n
         if (file && !busy) void submit(file);
       }}
     >
-      <div className="upload-wave" aria-hidden="true">
-        {WAVE.map((h, i) => (
-          <i key={i} style={{ ["--h" as string]: h, ["--i" as string]: i }} />
-        ))}
-      </div>
+      <CloudUpload className="upload-illo" />
 
       {phase.kind === "idle" && (
         <>

@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 import Brand from "@/components/Brand";
-import HeroDemo from "@/components/HeroDemo";
 import LoginForm from "@/components/LoginForm";
+import SoftBackdrop from "@/components/soft/SoftBackdrop";
+import { GrandPiano } from "@/components/soft/Illustrations";
 import { FREE_CREDITS, FREE_PREVIEW_SECONDS } from "@/lib/beta/preview";
 
 export const metadata = { title: "Entrar" };
@@ -11,11 +12,13 @@ export default function LoginPage() {
   return (
     <div className="auth">
       <aside className="auth-brand">
-        <HeroDemo speed={0.7} startAt={10} minWidth={720} />
-        <div className="hero-shade" aria-hidden="true" />
+        <SoftBackdrop rain={0.7} />
         <Brand href="/landing" />
         <div>
-          <h2>Cada canción que te gusta, convertida en un tutorial para tus manos.</h2>
+          <GrandPiano className="auth-illo" />
+          <h2>
+            Cada canción que te gusta, <span className="script">para tus manos.</span>
+          </h2>
           <p>
             Sube un audio de piano y practícalo con notas que caen, manos separadas, velocidad ajustable y loop de
             práctica. Gratis: {FREE_CREDITS} vistas previas de {FREE_PREVIEW_SECONDS} segundos.

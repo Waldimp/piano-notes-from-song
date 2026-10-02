@@ -58,7 +58,7 @@ export default function LandingDemo() {
           </div>
         </div>
         <p>
-          Lo que ves es el reproductor real de Pianissimo con una transcripción real. Dorado: mano derecha. Azul:
+          Lo que ves es el reproductor real de Pianissimo con una transcripción real. Matcha: mano derecha. Chai:
           mano izquierda.
         </p>
       </div>

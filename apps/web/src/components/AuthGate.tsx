@@ -26,7 +26,7 @@ export function useAuth(): AuthValue {
   return useContext(AuthContext);
 }
 
-const PUBLIC_PATHS = ["/terms", "/privacy", "/refund", "/landing", "/login", "/pricing"];
+const PUBLIC_PATHS = ["/terms", "/privacy", "/refund", "/landing", "/login", "/pricing", "/welcome", "/guia"];
 
 function isPublicPath(pathname: string | null): boolean {
   if (!pathname) return false;

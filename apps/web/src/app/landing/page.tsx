@@ -5,8 +5,11 @@ import Brand from "@/components/Brand";
 import HeroDemo from "@/components/HeroDemo";
 import LandingDemo from "@/components/LandingDemo";
 import Reveal from "@/components/Reveal";
+import SoftBackdrop from "@/components/soft/SoftBackdrop";
+import { CloudUpload, GrandPiano, Sprout } from "@/components/soft/Illustrations";
 import { BILLING_PRODUCTS } from "@/lib/billing/catalog";
 import { FREE_CREDITS, FREE_PREVIEW_SECONDS } from "@/lib/beta/preview";
+import { GENRES } from "@/lib/prefs";
 
 const WAVE = [30, 55, 80, 45, 70, 95, 60, 35, 75, 50, 85, 40];
 const FALL = [
@@ -29,6 +32,9 @@ export default function LandingPage() {
         <div className="nav-inner">
           <Brand href="/landing" />
           <div className="nav-spacer" />
+          <Link className="btn ghost small" href="/guia">
+            Guía
+          </Link>
           <Link className="btn ghost small" href="/pricing">
             Precios
           </Link>
@@ -38,22 +44,23 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* HERO: el producto tocando en vivo detrás del texto */}
+      {/* HERO: el reproductor real, en acuarela, detrás de la caligrafía */}
       <section className="hero" aria-label="Pianissimo">
-        <HeroDemo speed={0.8} startAt={3} minWidth={1100} />
+        <HeroDemo speed={0.75} startAt={3} minWidth={1100} />
         <div className="hero-shade" aria-hidden="true" />
+        <SoftBackdrop rain={0} clouds={false} />
         <div className="hero-content">
-          <p className="eyebrow">Tutoriales de piano a partir de cualquier grabación</p>
+          <p className="hero-brand">Pianissimo</p>
           <h1 className="hero-title">
             Tu canción. <em>Tu piano.</em> A tu ritmo.
           </h1>
           <p className="hero-lead">
-            Sube un audio de piano y Pianissimo lo convierte en notas que caen sobre un teclado real, listas para
-            practicar despacio, en loop y mano por mano.
+            Sube un audio de piano y míralo caer sobre un teclado real. Practica despacio, en loop y mano por mano,
+            sin prisa.
           </p>
           <div className="hero-cta">
-            <Link className="btn primary lg" href="/login">
-              Probar gratis
+            <Link className="btn primary lg" href="/welcome">
+              Comenzar
             </Link>
             <Link className="btn lg" href="#demo">
               Ver cómo funciona
@@ -74,7 +81,9 @@ export default function LandingPage() {
         <div className="section-inner">
           <Reveal className="section-head">
             <p className="eyebrow">Así se practica</p>
-            <h2 id="demo-title">Tócalo con los controles de verdad</h2>
+            <h2 id="demo-title">
+              Tócalo con los <span className="script">controles de verdad</span>
+            </h2>
             <p>Baja la velocidad, repite un pasaje o quédate con una mano. Los mismos controles que tendrás en tu tutorial.</p>
           </Reveal>
           <Reveal delay={120}>
@@ -88,7 +97,9 @@ export default function LandingPage() {
         <div className="section-inner">
           <Reveal className="section-head">
             <p className="eyebrow">De un audio a tus manos</p>
-            <h2 id="how-title">Tres momentos, un minuto</h2>
+            <h2 id="how-title">
+              Tres momentos, <span className="script">un minuto</span>
+            </h2>
           </Reveal>
           <div className="moments">
             <Reveal className="moment" delay={0}>
@@ -97,7 +108,7 @@ export default function LandingPage() {
                   <i key={i} style={{ ["--h" as string]: h, ["--i" as string]: i }} />
                 ))}
               </div>
-              <span className="n">01 · Sube</span>
+              <span className="n">Sube</span>
               <h3>Una grabación de piano</h3>
               <p>MP3, WAV, M4A, FLAC u OGG. Un cover que te guste, una clase, tu propia toma.</p>
             </Reveal>
@@ -107,7 +118,7 @@ export default function LandingPage() {
                   <i key={i} style={{ ["--i" as string]: (i * 7) % 48 }} />
                 ))}
               </div>
-              <span className="n">02 · Escuchamos</span>
+              <span className="n">Escuchamos</span>
               <h3>La IA detecta cada nota</h3>
               <p>Altura, duración, intensidad y pedal, con un modelo entrenado solo en piano.</p>
             </Reveal>
@@ -117,7 +128,7 @@ export default function LandingPage() {
                   <i key={i} className={n.l ? "l" : ""} style={{ ["--x" as string]: n.x, ["--i" as string]: i }} />
                 ))}
               </div>
-              <span className="n">03 · Practicas</span>
+              <span className="n">Practicas</span>
               <h3>Notas que caen sobre 88 teclas</h3>
               <p>Ves qué tecla, cuándo y cuánto. Y el tutorial espera tu ritmo, no al revés.</p>
             </Reveal>
@@ -125,22 +136,41 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* FEATURE STORYTELLING */}
+      {/* TU ESTILO */}
+      <section className="section" aria-labelledby="style-title">
+        <div className="section-inner">
+          <Reveal className="section-head center">
+            <p className="eyebrow">Encuentra tu estilo</p>
+            <h2 id="style-title">
+              Lo que te gusta <span className="script">tocar</span>
+            </h2>
+            <p>Pop, clásico, anime, bandas sonoras… Pianissimo funciona con cualquier grabación de piano. Cuéntanos tu estilo al empezar.</p>
+          </Reveal>
+          <Reveal className="genre-cloud" delay={120} style={{ marginTop: "1.8rem", maxWidth: 560 }}>
+            {GENRES.map((g, i) => (
+              <span key={g.id} className={`genre ${g.tone}`} style={{ ["--d" as string]: `${(i % 5) * 0.4}s` }}>
+                {g.label}
+              </span>
+            ))}
+          </Reveal>
+        </div>
+      </section>
+
+      {/* FEATURES */}
       <section className="section" aria-labelledby="features-title">
         <div className="section-inner">
           <Reveal className="section-head">
             <p className="eyebrow">Hecho para practicar</p>
-            <h2 id="features-title">Todo lo que necesita una sesión de estudio</h2>
+            <h2 id="features-title">
+              Todo lo que necesita <span className="script">una sesión</span>
+            </h2>
           </Reveal>
           <div className="features">
             <Reveal className="feature">
               <div>
                 <p className="eyebrow">Loop A · B</p>
                 <h3>Repite el pasaje difícil hasta que salga</h3>
-                <p>
-                  Marca un inicio y un final y el tutorial vuelve solo. La banda dorada te muestra exactamente qué
-                  compases estás repitiendo.
-                </p>
+                <p>Marca un inicio y un final y el tutorial vuelve solo. La banda te muestra exactamente qué compases estás repitiendo.</p>
               </div>
               <div className="feature-visual">
                 <HeroDemo speed={0.7} loop={[8, 14]} startAt={8} minWidth={640} />
@@ -169,7 +199,7 @@ export default function LandingPage() {
             <Reveal className="feature">
               <div>
                 <p className="eyebrow">Manos</p>
-                <h3>Dorado para la derecha, azul para la izquierda</h3>
+                <h3>Matcha para la derecha, chai para la izquierda</h3>
                 <p>Filtra una mano para estudiarla sola y ve cómo encaja con la otra. Separación aproximada, pensada para practicar.</p>
               </div>
               <div className="feature-visual">
@@ -182,11 +212,12 @@ export default function LandingPage() {
                 <p className="eyebrow">Vista previa gratis</p>
                 <h3>Los primeros {FREE_PREVIEW_SECONDS} segundos, sin pagar</h3>
                 <p>
-                  Sube cualquier canción con el plan gratis: procesamos el primer minuto para que compruebes la
-                  calidad. Si te convence, desbloqueas la canción completa con un crédito.
+                  Sube cualquier canción con el plan gratis: procesamos el primer minuto para que compruebes la calidad.
+                  Si te convence, desbloqueas la canción completa con un crédito.
                 </p>
               </div>
               <div className="feature-visual">
+                <CloudUpload className="feature-illo" />
                 <div className="timeline" aria-hidden="true">
                   <div className="played" />
                   <div className="locked" />
@@ -196,19 +227,20 @@ export default function LandingPage() {
                   <span className="timeline-mark">1:00 · vista previa</span>
                   <span>3:14</span>
                 </div>
-                <p className="muted small">La canción completa se desbloquea con un Mini Pack o un plan mensual.</p>
               </div>
             </Reveal>
           </div>
         </div>
       </section>
 
-      {/* PRICING RESUMIDO */}
+      {/* PRICING */}
       <section className="section" aria-labelledby="plans-title">
         <div className="section-inner">
           <Reveal className="section-head">
             <p className="eyebrow">Precios</p>
-            <h2 id="plans-title">Paga por canción, no por mes… salvo que quieras</h2>
+            <h2 id="plans-title">
+              Paga por canción, <span className="script">no por mes</span>
+            </h2>
             <p>Un tutorial completo consume un crédito. Reproducir los que ya tienes es gratis, siempre.</p>
           </Reveal>
           <Reveal className="pricing-editorial" delay={100}>
@@ -265,15 +297,19 @@ export default function LandingPage() {
 
       {/* CTA FINAL */}
       <section className="cta-final" aria-labelledby="cta-title">
-        <Reveal>
-          <p className="eyebrow">Empieza hoy</p>
-          <h2 id="cta-title">La próxima canción que aprendas empieza con un audio.</h2>
+        <SoftBackdrop rain={0.6} />
+        <Reveal style={{ position: "relative" }}>
+          <GrandPiano className="cta-illo" />
+          <h2 id="cta-title">
+            Practica <span className="script">y disfruta</span>
+          </h2>
+          <Sprout className="sprout-inline" />
           <div className="row">
-            <Link className="btn primary lg" href="/login">
-              Crear cuenta gratis
+            <Link className="btn primary lg" href="/welcome">
+              Comenzar gratis
             </Link>
-            <Link className="btn lg" href="/pricing">
-              Ver precios
+            <Link className="btn lg" href="/guia">
+              Leer la guía
             </Link>
           </div>
         </Reveal>

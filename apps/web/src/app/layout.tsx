@@ -1,23 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans, Instrument_Serif } from "next/font/google";
+import { Dancing_Script, Quicksand } from "next/font/google";
 import type { ReactNode } from "react";
 
 import "./globals.css";
 import AuthGate from "@/components/AuthGate";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_OG, SITE_TITLE } from "@/lib/site";
 
-const dmSans = DM_Sans({
+const quicksand = Quicksand({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-dm-sans",
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-quicksand",
   display: "swap",
 });
 
-const instrumentSerif = Instrument_Serif({
+const dancing = Dancing_Script({
   subsets: ["latin"],
-  weight: ["400"],
-  style: ["normal", "italic"],
-  variable: "--font-instrument-serif",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-dancing",
   display: "swap",
 });
 
@@ -33,19 +32,19 @@ export const metadata: Metadata = {
     type: SITE_OG.type,
     siteName: SITE_NAME,
   },
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: SITE_NAME },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: SITE_NAME },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0b0a0c",
+  themeColor: "#f7f3ea",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es" className={`${dmSans.variable} ${instrumentSerif.variable}`}>
+    <html lang="es" className={`${quicksand.variable} ${dancing.variable}`}>
       <body>
         <AuthGate>{children}</AuthGate>
       </body>

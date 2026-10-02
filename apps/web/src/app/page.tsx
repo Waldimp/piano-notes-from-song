@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import AppFooter from "@/components/AppFooter";
@@ -16,6 +17,9 @@ import { API_URL } from "@/lib/data/local";
 import { requestImmediateDispatchWake } from "@/lib/data/wake-after-submit";
 import { isCloudMode, supabase } from "@/lib/supabase";
 import { mapCreateRequestError } from "@/lib/userMessages";
+import { genreLabel, genreTone, isOnboarded, loadStyles } from "@/lib/prefs";
+import SoftBackdrop from "@/components/soft/SoftBackdrop";
+import { GrandPiano } from "@/components/soft/Illustrations";
 
 /** Mientras haya canciones en cola, re-despertar al worker como máximo cada 30 s. */
 const REWAKE_INTERVAL_MS = 30_000;
@@ -37,6 +41,13 @@ export default function Home() {
   const [usageTick, setUsageTick] = useState(0);
   const { usage } = useUsage(usageTick);
   const lastWakeRef = useRef(0);
+  const [styles, setStyles] = useState<string[]>([]);
+
+  // Primera visita: bienvenida en cuatro pantallas (solo en el navegador).
+  useEffect(() => {
+    if (isCloudMode && !isOnboarded()) router.replace("/welcome");
+    setStyles(loadStyles());
+  }, [router]);
 
   const reload = useCallback(() => {
     data
@@ -150,14 +161,31 @@ export default function Home() {
     <main className="shell">
       <AppHeader />
 
+      <SoftBackdrop rain={0.25} clouds={false} />
       <div className="library-hero">
         <div>
           <p className="eyebrow">Tu biblioteca</p>
-          <h1>Tus canciones</h1>
+          <h1>
+            Tus <span className="script">canciones</span>
+          </h1>
           <p>{isCloudMode ? "Cada canción, lista para practicar despacio, en loop y mano por mano." : "Biblioteca local en esta PC"}</p>
         </div>
         {isCloudMode && <UsageBanner refreshKey={usageTick} />}
       </div>
+
+      {styles.length > 0 && (
+        <div className="styles-row" aria-label="Tus estilos">
+          <span className="label">Tu estilo</span>
+          {styles.map((id) => (
+            <span key={id} className={`genre ${genreTone(id)}`}>
+              {genreLabel(id)}
+            </span>
+          ))}
+          <Link className="btn link small" href="/welcome">
+            cambiar
+          </Link>
+        </div>
+      )}
 
       <UploadBox
         usage={usage}
@@ -183,6 +211,7 @@ export default function Home() {
 
       {showEmpty && (
         <div className="empty">
+          <GrandPiano />
           <h3>Tu biblioteca está en silencio</h3>
           <p>Sube tu primera canción y en un minuto tendrás un tutorial interactivo.</p>
         </div>

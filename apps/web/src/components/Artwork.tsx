@@ -9,15 +9,15 @@
  */
 
 const PALETTES: Array<[string, string, string]> = [
-  // [fondo A, fondo B, luz]
-  ["#4a1f2e", "#1a0f18", "#f2d18a"], // burdeos → dorado
-  ["#1c2f4a", "#0f1420", "#a6d0ee"], // azul profundo → cielo
-  ["#2f2a1a", "#141009", "#f6e2b0"], // ámbar tostado → champán
-  ["#1f3a33", "#0d1613", "#bfe3c8"], // verde musgo → menta pálida
-  ["#3a2352", "#170f22", "#e6c3ff"], // ciruela → lila
-  ["#4a2f1a", "#1a120c", "#f5c98c"], // caoba → miel
-  ["#2a1f3a", "#0f0c16", "#f2d18a"], // índigo tenue → dorado
-  ["#40222a", "#150d10", "#f0b8a8"], // vino → rosa pálido
+  // [fondo A, fondo B, acento]
+  ["#e3e7d4", "#b3b792", "#809671"], // pistache → matcha
+  ["#f1e6d4", "#e5d2b8", "#d2ab80"], // vainilla → chai
+  ["#e9e4dc", "#d3cab9", "#725c3a"], // almendra → carob
+  ["#e6ead9", "#c7cfb0", "#6f8563"], // salvia clara → verde
+  ["#f0e4d2", "#dcc3a2", "#a7845c"], // arena → nuez
+  ["#eaece2", "#c3c8ad", "#809671"], // niebla verde → matcha
+  ["#efe6d9", "#dfcfb7", "#b8905f"], // papel → caramelo
+  ["#e4e9dc", "#bfc6a8", "#5f7254"], // menta pálida → musgo
 ];
 
 function hash(text: string): number {
@@ -107,8 +107,8 @@ export default function Artwork({
           <stop offset="1" stopColor={b} />
         </linearGradient>
         <radialGradient id={`${id}-orb`}>
-          <stop offset="0" stopColor={light} stopOpacity="0.55" />
-          <stop offset="1" stopColor={light} stopOpacity="0" />
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.75" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
         </radialGradient>
         <linearGradient id={`${id}-bar`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor={light} stopOpacity="0.95" />
@@ -127,18 +127,18 @@ export default function Artwork({
       </g>
       {/* piano abstracto */}
       <g>
-        <rect x="0" y="80" width="160" height="20" fill="#f4ede3" />
+        <rect x="0" y="80" width="160" height="20" fill="#fffdf8" />
         {Array.from({ length: 14 }, (_, i) => (
-          <rect key={`k${i}`} x={i * 11.43 + 11.43 - 0.6} y="80" width="0.6" height="20" fill="#0c0a0d" opacity="0.6" />
+          <rect key={`k${i}`} x={i * 11.43 + 11.43 - 0.6} y="80" width="0.6" height="20" fill="#725c3a" opacity="0.35" />
         ))}
         {spec.pressed.map((i) => (
           <rect key={`p${i}`} x={i * 11.43} y="80" width="11.43" height="20" fill={light} opacity="0.9" />
         ))}
         {[0, 1, 3, 4, 5, 7, 8, 10, 11, 12].map((i) => (
-          <rect key={`b${i}`} x={i * 11.43 + 7.8} y="80" width="7" height="12" rx="1" fill="#15121a" />
+          <rect key={`b${i}`} x={i * 11.43 + 7.8} y="80" width="7" height="12" rx="1" fill="#725c3a" />
         ))}
       </g>
-      <text x="150" y="16" textAnchor="end" fontSize="13" fill={light} opacity="0.85" fontFamily="serif">
+      <text x="150" y="16" textAnchor="end" fontSize="13" fill="#725c3a" opacity="0.7" fontFamily="serif">
         {glyph}
       </text>
     </svg>

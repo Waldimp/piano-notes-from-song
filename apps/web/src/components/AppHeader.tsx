@@ -15,6 +15,7 @@ type Props = {
 
 const LINKS: Array<{ href: string; label: string }> = [
   { href: "/", label: "Tus canciones" },
+  { href: "/guia", label: "Guía" },
   { href: "/pricing", label: "Precios" },
 ];
 

@@ -1,6 +1,6 @@
 /**
- * Dibujo del tutorial en Canvas 2D — "escenario": teclado de marfil sobre
- * ébano, notas como barras de luz. Sin estado propio de tiempo: recibe
+ * Dibujo del tutorial en Canvas 2D — "acuarela": teclado de marfil sobre
+ * crema, notas como barras pastel (matcha y chai). Sin estado propio de tiempo: recibe
  * `currentTime` (derivado de audio.currentTime, el reloj autoritativo) y
  * pinta un frame completo. Toda la geometría/matemática vive en falling.ts y
  * keyboard.ts; aquí solo hay presentación.
@@ -14,43 +14,44 @@ export const KEYBOARD_HEIGHT_RATIO = 0.17;
 export const PIXELS_PER_SECOND = 170;
 
 const STAGE = {
-  bgTop: "#0c0a0d",
-  bgBottom: "#151116",
-  lane: "rgba(246, 241, 231, 0.045)",
-  laneC: "rgba(246, 241, 231, 0.09)",
-  felt: "#8b3a4a",
-  feltGlow: "rgba(139, 58, 74, 0.55)",
-  whiteKeyTop: "#f7f2e8",
-  whiteKeyBottom: "#e9e1d3",
-  whiteKeyEdge: "#cfc4b2",
-  blackKeyTop: "#2b262b",
-  blackKeyBottom: "#0f0d10",
-  keyGap: "#0b0a0c",
-  labelOnWhite: "#7a6f62",
-  labelOnBlack: "#b9b0a3",
-  labelOnBar: "rgba(12, 10, 13, 0.85)",
-  loopBand: "rgba(229, 192, 123, 0.10)",
-  loopEdge: "rgba(229, 192, 123, 0.55)",
+  bgTop: "#f7f3ea",
+  bgBottom: "#ece5d6",
+  lane: "rgba(114, 92, 58, 0.06)",
+  laneC: "rgba(114, 92, 58, 0.13)",
+  felt: "#b3b792",
+  feltGlow: "rgba(128, 150, 113, 0.45)",
+  whiteKeyTop: "#fffdf8",
+  whiteKeyBottom: "#f1eadc",
+  whiteKeyEdge: "#d6cbb6",
+  blackKeyTop: "#8b7554",
+  blackKeyBottom: "#5c4a2c",
+  keyGap: "#d8cdb9",
+  labelOnWhite: "#8a7a62",
+  labelOnBlack: "#f3ebdd",
+  labelOnBar: "rgba(58, 46, 28, 0.85)",
+  loopBand: "rgba(210, 171, 128, 0.18)",
+  loopEdge: "rgba(114, 92, 58, 0.5)",
 };
 
 /**
- * Colores por mano. Derecha (o sin mano) en champagne/dorado —la luz del
- * escenario—, izquierda en azul frío para distinguirla al instante.
+ * Colores por mano, en la paleta suave de Pianissimo: derecha (o sin mano)
+ * en matcha, izquierda en chai. Ambas se distinguen al instante y conviven
+ * con el fondo crema sin estridencias.
  */
 const HAND_COLORS = {
   right: {
-    onWhite: "#f2d18a",
-    onBlack: "#d3a95a",
-    glow: "rgba(242, 209, 138, 0.35)",
-    keyWhite: "#f5d68f",
-    keyBlack: "#c99b4e",
+    onWhite: "#809671",
+    onBlack: "#66795a",
+    glow: "rgba(128, 150, 113, 0.32)",
+    keyWhite: "#b3b792",
+    keyBlack: "#6f8563",
   },
   left: {
-    onWhite: "#8ec3ec",
-    onBlack: "#4f8fc2",
-    glow: "rgba(142, 195, 236, 0.32)",
-    keyWhite: "#a6d0ee",
-    keyBlack: "#5a98c8",
+    onWhite: "#d2ab80",
+    onBlack: "#b8905f",
+    glow: "rgba(210, 171, 128, 0.34)",
+    keyWhite: "#e5d2b8",
+    keyBlack: "#c39a6a",
   },
 };
 
@@ -210,7 +211,7 @@ function drawFallingNotes(
     ctx.roundRect(x, top, barWidth, h, radius);
     ctx.fill();
     // Brillo superior (sensación de volumen) — solo una línea.
-    ctx.fillStyle = "rgba(255,255,255,0.28)";
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
     ctx.fillRect(x + 1, top + 1, Math.max(0, barWidth - 2), 1);
 
     if (view.showNoteNames && h >= labelFont + 4 && barWidth >= labelFont * 0.8) {

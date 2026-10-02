@@ -632,7 +632,7 @@ export default function Tutorial({ id }: { id: string }) {
             ))}
           </div>
           <span className="hint">
-            Espacio: play/pausa · ←/→: ±{SEEK_STEP_SECONDS}s{hasHands ? " · dorado ≈ derecha, azul ≈ izquierda" : ""} ·{" "}
+            Espacio: play/pausa · ←/→: ±{SEEK_STEP_SECONDS}s{hasHands ? " · matcha ≈ derecha, chai ≈ izquierda" : ""} ·{" "}
             {transcription.notes.length} notas
           </span>
         </div>
