@@ -342,6 +342,40 @@ code {
   animation: rise 2.2s var(--ease-in-out) infinite;
 }
 
+/* logo oficial: cuerpo y tapa entran por separado */
+.logo .logo-body,
+.logo .logo-lid {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.logo-in .logo-body {
+  animation: logo-body-in 1.1s var(--ease-out) both;
+}
+.logo-in .logo-lid {
+  transform-origin: 20% 100%;
+  animation: logo-lid-in 1.3s var(--ease-out) 0.35s both;
+}
+@keyframes logo-body-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes logo-lid-in {
+  from {
+    opacity: 0;
+    transform: rotate(16deg) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* ---------- layout ---------- */
 .shell {
   position: relative;
@@ -661,9 +695,18 @@ code {
   line-height: 1;
 }
 .brand-mark {
+  display: inline-grid;
+  place-items: center;
   width: 34px;
   height: 34px;
+  padding: 4px;
+  border-radius: 50%;
+  background: #e9ecdc;
   flex-shrink: 0;
+}
+.brand-mark .logo {
+  width: 100%;
+  height: 100%;
 }
 .nav-links {
   display: flex;
@@ -828,8 +871,9 @@ code {
 .ob-art {
   position: relative;
   z-index: 1;
-  width: min(360px, 78vw);
-  margin-bottom: 1.2rem;
+  width: min(250px, 58vw);
+  max-height: 27vh;
+  margin-bottom: 1rem;
 }
 .ob-title {
   position: relative;
@@ -2086,8 +2130,8 @@ html.fx-scroll {
   z-index: 0;
 }
 .auth-brand .auth-illo {
-  width: min(360px, 70%);
-  margin: 1rem 0 0;
+  width: min(270px, 55%);
+  margin: 0.5rem 0 0;
 }
 .auth-brand h2 {
   font-size: clamp(1.7rem, 2.6vw, 2.4rem);
@@ -2584,7 +2628,7 @@ html.fx-scroll {
     min-height: 260px;
   }
   .auth-brand .auth-illo {
-    width: 180px;
+    width: 130px;
     margin: 0;
   }
   .auth-brand h2 {
@@ -2745,7 +2789,7 @@ html.fx-scroll {
     right: -10%;
   }
   .ob-art {
-    width: min(300px, 70vw);
+    width: min(210px, 52vw);
   }
 }
 

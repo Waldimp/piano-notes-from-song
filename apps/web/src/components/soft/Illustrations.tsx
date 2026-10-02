@@ -3,31 +3,11 @@
  * para animarse con CSS: `.draw` dibuja el trazo, `.float` flota suavemente.
  */
 
+import Logo from "@/components/soft/Logo";
+
+/** Piano de cola: desde el rediseño es el logo oficial (ver Logo.tsx), que entra dibujándose. */
 export function GrandPiano({ className = "" }: { className?: string }) {
-  return (
-    <svg className={`illo piano-line${className ? ` ${className}` : ""}`} viewBox="0 0 240 160" fill="none" aria-hidden="true">
-      <g stroke="#725c3a" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="draw">
-        {/* tapa abierta */}
-        <path d="M118 28 C 150 10, 200 12, 214 40 L 196 92 L 118 70 Z" />
-        <path d="M118 28 L 118 70" />
-        <path d="M150 40 L 196 92" />
-        {/* cuerpo */}
-        <path d="M28 70 L 118 70 L 196 92 L 196 120 L 28 120 Z" />
-        <path d="M28 70 L 28 120" />
-        {/* teclado */}
-        <path d="M34 98 L 150 98 L 150 112 L 34 112 Z" />
-        {Array.from({ length: 12 }, (_, i) => (
-          <path key={i} d={`M${42 + i * 9} 98 L ${42 + i * 9} 112`} strokeWidth="1.4" opacity="0.6" />
-        ))}
-        {/* patas */}
-        <path d="M40 120 L 40 150" />
-        <path d="M110 120 L 110 150" />
-        <path d="M186 120 L 186 150" />
-        {/* pedales */}
-        <path d="M100 150 L 128 150" strokeWidth="3" />
-      </g>
-    </svg>
-  );
+  return <Logo className={`piano-line${className ? ` ${className}` : ""}`} animate />;
 }
 
 export function CloudUpload({ className = "" }: { className?: string }) {
