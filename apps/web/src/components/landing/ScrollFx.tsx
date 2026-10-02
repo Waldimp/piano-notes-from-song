@@ -67,7 +67,7 @@ export default function ScrollFx() {
         el.style.transform = `translate3d(0, ${(y * 0.28).toFixed(1)}px, 0) scale(${(1 - t * 0.06).toFixed(4)})`;
       }
       for (const el of hb) {
-        el.style.transform = `translate3d(0, ${(y * 0.45).toFixed(1)}px, 0)`;
+        el.style.transform = `translate3d(0, ${(y * 0.35).toFixed(1)}px, 0)`;
       }
     };
 
