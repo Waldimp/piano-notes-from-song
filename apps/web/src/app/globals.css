@@ -1234,6 +1234,27 @@ code {
   text-align: center;
 }
 
+/* efectos de scroll (ScrollFx) */
+html.fx-scroll {
+  scroll-behavior: auto;
+}
+[data-parallax],
+[data-hero-fade],
+[data-hero-bg] {
+  will-change: transform;
+}
+.hero-bg {
+  position: absolute;
+  inset: 0;
+}
+.landing .reveal {
+  transform: translateY(34px);
+  transition-duration: 1.1s;
+}
+.landing .reveal.in {
+  transform: none;
+}
+
 /* demo interactiva */
 .stage-demo {
   margin-top: 2rem;

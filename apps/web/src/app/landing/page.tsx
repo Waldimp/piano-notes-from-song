@@ -5,6 +5,7 @@ import Brand from "@/components/Brand";
 import HeroDemo from "@/components/HeroDemo";
 import LandingDemo from "@/components/LandingDemo";
 import Reveal from "@/components/Reveal";
+import ScrollFx from "@/components/landing/ScrollFx";
 import SoftBackdrop from "@/components/soft/SoftBackdrop";
 import { CloudUpload, GrandPiano, Sprout } from "@/components/soft/Illustrations";
 import { BILLING_PRODUCTS } from "@/lib/billing/catalog";
@@ -28,6 +29,7 @@ export default function LandingPage() {
 
   return (
     <main className="landing">
+      <ScrollFx />
       <header className="nav floating">
         <div className="nav-inner">
           <Brand href="/landing" />
@@ -46,10 +48,12 @@ export default function LandingPage() {
 
       {/* HERO: el reproductor real, en acuarela, detrás de la caligrafía */}
       <section className="hero" aria-label="Pianissimo">
-        <HeroDemo speed={0.75} startAt={3} minWidth={1100} />
+        <div className="hero-bg" data-hero-bg>
+          <HeroDemo speed={0.75} startAt={3} minWidth={1100} />
+        </div>
         <div className="hero-shade" aria-hidden="true" />
         <SoftBackdrop rain={0} clouds={false} />
-        <div className="hero-content">
+        <div className="hero-content" data-hero-fade>
           <p className="hero-brand">Pianissimo</p>
           <h1 className="hero-title">
             Tu canción. <em>Tu piano.</em> A tu ritmo.
@@ -79,7 +83,7 @@ export default function LandingPage() {
       {/* DEMO INTERACTIVA */}
       <section className="section" id="demo" aria-labelledby="demo-title">
         <div className="section-inner">
-          <Reveal className="section-head">
+          <Reveal className="section-head" data-parallax="-0.06">
             <p className="eyebrow">Así se practica</p>
             <h2 id="demo-title">
               Tócalo con los <span className="script">controles de verdad</span>
@@ -95,14 +99,14 @@ export default function LandingPage() {
       {/* TRES MOMENTOS */}
       <section className="section" aria-labelledby="how-title">
         <div className="section-inner">
-          <Reveal className="section-head">
+          <Reveal className="section-head" data-parallax="-0.06">
             <p className="eyebrow">De un audio a tus manos</p>
             <h2 id="how-title">
               Tres momentos, <span className="script">un minuto</span>
             </h2>
           </Reveal>
           <div className="moments">
-            <Reveal className="moment" delay={0}>
+            <Reveal className="moment" delay={0} data-parallax="0.05">
               <div className="motif motif-wave" aria-hidden="true">
                 {WAVE.map((h, i) => (
                   <i key={i} style={{ ["--h" as string]: h, ["--i" as string]: i }} />
@@ -112,7 +116,7 @@ export default function LandingPage() {
               <h3>Una grabación de piano</h3>
               <p>MP3, WAV, M4A, FLAC u OGG. Un cover que te guste, una clase, tu propia toma.</p>
             </Reveal>
-            <Reveal className="moment" delay={120}>
+            <Reveal className="moment" delay={120} data-parallax="0.12">
               <div className="motif motif-detect" aria-hidden="true">
                 {Array.from({ length: 48 }, (_, i) => (
                   <i key={i} style={{ ["--i" as string]: (i * 7) % 48 }} />
@@ -122,7 +126,7 @@ export default function LandingPage() {
               <h3>La IA detecta cada nota</h3>
               <p>Altura, duración, intensidad y pedal, con un modelo entrenado solo en piano.</p>
             </Reveal>
-            <Reveal className="moment" delay={240}>
+            <Reveal className="moment" delay={240} data-parallax="0.19">
               <div className="motif motif-fall" aria-hidden="true">
                 {FALL.map((n, i) => (
                   <i key={i} className={n.l ? "l" : ""} style={{ ["--x" as string]: n.x, ["--i" as string]: i }} />
@@ -139,14 +143,14 @@ export default function LandingPage() {
       {/* TU ESTILO */}
       <section className="section" aria-labelledby="style-title">
         <div className="section-inner">
-          <Reveal className="section-head center">
+          <Reveal className="section-head center" data-parallax="-0.06">
             <p className="eyebrow">Encuentra tu estilo</p>
             <h2 id="style-title">
               Lo que te gusta <span className="script">tocar</span>
             </h2>
             <p>Pop, clásico, anime, bandas sonoras… Pianissimo funciona con cualquier grabación de piano. Cuéntanos tu estilo al empezar.</p>
           </Reveal>
-          <Reveal className="genre-cloud" delay={120} style={{ marginTop: "1.8rem", maxWidth: 560 }}>
+          <Reveal className="genre-cloud" delay={120} style={{ marginTop: "1.8rem", maxWidth: 560 }} data-parallax="0.1">
             {GENRES.map((g, i) => (
               <span key={g.id} className={`genre ${g.tone}`} style={{ ["--d" as string]: `${(i % 5) * 0.4}s` }}>
                 {g.label}
@@ -159,7 +163,7 @@ export default function LandingPage() {
       {/* FEATURES */}
       <section className="section" aria-labelledby="features-title">
         <div className="section-inner">
-          <Reveal className="section-head">
+          <Reveal className="section-head" data-parallax="-0.06">
             <p className="eyebrow">Hecho para practicar</p>
             <h2 id="features-title">
               Todo lo que necesita <span className="script">una sesión</span>
@@ -172,7 +176,7 @@ export default function LandingPage() {
                 <h3>Repite el pasaje difícil hasta que salga</h3>
                 <p>Marca un inicio y un final y el tutorial vuelve solo. La banda te muestra exactamente qué compases estás repitiendo.</p>
               </div>
-              <div className="feature-visual">
+              <div className="feature-visual" data-parallax="0.18">
                 <HeroDemo speed={0.7} loop={[8, 14]} startAt={8} minWidth={640} />
               </div>
             </Reveal>
@@ -183,7 +187,7 @@ export default function LandingPage() {
                 <h3>Despacio primero, a tempo después</h3>
                 <p>0.5x, 0.75x, 1x y 1.25x sin que cambie el tono. El audio original sigue siendo el reloj.</p>
               </div>
-              <div className="feature-visual">
+              <div className="feature-visual" data-parallax="0.14">
                 <div className="metro" aria-hidden="true">
                   <div className="pend" style={{ ["--period" as string]: "1.6s" }} />
                   <div className="speeds">
@@ -202,7 +206,7 @@ export default function LandingPage() {
                 <h3>Matcha para la derecha, chai para la izquierda</h3>
                 <p>Filtra una mano para estudiarla sola y ve cómo encaja con la otra. Separación aproximada, pensada para practicar.</p>
               </div>
-              <div className="feature-visual">
+              <div className="feature-visual" data-parallax="0.18">
                 <HeroDemo speed={0.7} handFilter="left" startAt={12} minWidth={640} />
               </div>
             </Reveal>
@@ -216,7 +220,7 @@ export default function LandingPage() {
                   Si te convence, desbloqueas la canción completa con un crédito.
                 </p>
               </div>
-              <div className="feature-visual">
+              <div className="feature-visual" data-parallax="0.14">
                 <CloudUpload className="feature-illo" />
                 <div className="timeline" aria-hidden="true">
                   <div className="played" />
@@ -236,7 +240,7 @@ export default function LandingPage() {
       {/* PRICING */}
       <section className="section" aria-labelledby="plans-title">
         <div className="section-inner">
-          <Reveal className="section-head">
+          <Reveal className="section-head" data-parallax="-0.06">
             <p className="eyebrow">Precios</p>
             <h2 id="plans-title">
               Paga por canción, <span className="script">no por mes</span>
@@ -244,7 +248,7 @@ export default function LandingPage() {
             <p>Un tutorial completo consume un crédito. Reproducir los que ya tienes es gratis, siempre.</p>
           </Reveal>
           <Reveal className="pricing-editorial" delay={100}>
-            <div className="price-hero">
+            <div className="price-hero" data-parallax="0.08">
               <p className="eyebrow">Mini Pack · pago único</p>
               <p className="big">
                 ${mini.priceUsd.toFixed(2)} <small>USD</small>
@@ -298,7 +302,7 @@ export default function LandingPage() {
       {/* CTA FINAL */}
       <section className="cta-final" aria-labelledby="cta-title">
         <SoftBackdrop rain={0.6} />
-        <Reveal style={{ position: "relative" }}>
+        <Reveal style={{ position: "relative" }} data-parallax="0.12">
           <GrandPiano className="cta-illo" />
           <h2 id="cta-title">
             Practica <span className="script">y disfruta</span>

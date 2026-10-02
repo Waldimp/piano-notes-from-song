@@ -18,9 +18,11 @@ type Props = {
   threshold?: number;
   style?: CSSProperties;
   id?: string;
+  /** Atributos data-* (p. ej. data-parallax) que se pasan al elemento. */
+  [key: `data-${string}`]: string | undefined;
 };
 
-export default function Reveal({ children, as = "div", className = "", delay = 0, threshold = 0.18, style, id }: Props) {
+export default function Reveal({ children, as = "div", className = "", delay = 0, threshold = 0.18, style, id, ...rest }: Props) {
   const ref = useRef<HTMLElement | null>(null);
   const [inView, setInView] = useState(false);
 
@@ -49,6 +51,7 @@ export default function Reveal({ children, as = "div", className = "", delay = 0
   const Tag = as as unknown as "div";
   return (
     <Tag
+      {...rest}
       id={id}
       ref={ref as unknown as React.RefObject<HTMLDivElement>}
       className={`reveal${inView ? " in" : ""}${className ? ` ${className}` : ""}`}
