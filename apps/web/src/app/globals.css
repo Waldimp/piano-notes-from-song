@@ -1297,6 +1297,249 @@ html.fx-scroll {
   transform: none;
 }
 
+/* ---------- escenas de scroll (HeroScene, TutorialScene) ---------- */
+.scene-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.hero.scene {
+  display: block;
+  min-height: 0;
+  height: 330svh;
+  overflow: visible;
+}
+.hero.scene .hero-bg {
+  will-change: transform;
+  transform-origin: 50% 100%;
+}
+.hero.scene .hero-shade {
+  will-change: opacity;
+}
+.hero.scene .hero-content {
+  min-height: 0;
+  padding-top: calc(var(--nav-h) + 0.5rem);
+  transform: translateY(-3vh);
+  gap: 0.6rem;
+}
+.scene-logo {
+  width: clamp(150px, 21vh, 230px);
+  will-change: transform, opacity;
+}
+.scene-logo .logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  /* la entrada va en el svg: el contenedor lo mueve el scroll por estilo inline */
+  animation: logo-wrap-in 1.3s var(--ease-out) both;
+}
+.scene-logo .logo-lid {
+  transform-origin: 0% 100%;
+  will-change: transform, opacity;
+}
+.scene-logo .logo-body {
+  transform-origin: 50% 100%;
+  will-change: transform;
+}
+@keyframes logo-wrap-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.hero-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  will-change: transform, opacity;
+}
+.hero-text > * {
+  pointer-events: auto;
+}
+.scene-tag {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--nav-h) + 5vh);
+  z-index: 3;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 38rem;
+  padding: 0 1.25rem;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.scene-tag-card {
+  padding: 1.5rem 1.8rem 1.8rem;
+  border-radius: var(--r-lg);
+  background: rgba(247, 243, 234, 0.74);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
+  box-shadow: var(--shadow-deep), var(--ring);
+}
+.scene-tag h2 {
+  margin-top: 0.5rem;
+  font-size: clamp(2rem, 4.2vw, 3.2rem);
+  line-height: 1.1;
+}
+.scene-tag h2 .script {
+  font-size: 1.25em;
+  color: var(--matcha);
+}
+.scene-tag > p:not(.eyebrow) {
+  margin-top: 0.7rem;
+  color: var(--muted);
+}
+.scene-tag .btn {
+  margin-top: 1.3rem;
+}
+
+.scene-tutorial {
+  padding: 0;
+  height: 420svh;
+}
+.tut-stage {
+  justify-content: center;
+}
+.tut-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 400px) 1fr;
+  gap: 3rem;
+  align-items: center;
+  width: 100%;
+}
+.tut-grid > * {
+  min-width: 0; /* el lienzo de 720px no debe ensanchar la rejilla en móvil */
+}
+.tut-copy {
+  position: relative;
+  min-height: 280px;
+}
+.tut-step {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: translateY(26px);
+  transition:
+    opacity 0.7s var(--ease-out),
+    transform 0.7s var(--ease-out);
+  pointer-events: none;
+}
+.tut-step.on {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+}
+.tut-step.past {
+  transform: translateY(-26px);
+}
+.tut-dots {
+  position: absolute;
+  left: 0;
+  bottom: -1.2rem;
+  display: flex;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tut-dots li {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--paper-3);
+  overflow: hidden;
+}
+.tut-dots li i {
+  display: block;
+  height: 100%;
+  width: calc(var(--p, 0) * 100%);
+  background: var(--matcha);
+}
+.stage-demo.single {
+  display: block;
+  margin-top: 0;
+}
+.tut-demo .hero-demo {
+  height: min(540px, 62svh);
+}
+.tut-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.1rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+@media (max-width: 900px) {
+  .tut-grid {
+    grid-template-columns: 1fr;
+    gap: 1.4rem;
+    align-content: center;
+  }
+  .tut-demo {
+    order: -1;
+  }
+  .tut-copy {
+    min-height: 200px;
+  }
+  .tut-step h2 {
+    font-size: clamp(1.6rem, 6vw, 2.2rem);
+  }
+  .tut-step p:not(.eyebrow) {
+    font-size: 0.98rem;
+  }
+  .tut-demo .hero-demo {
+    height: min(360px, 42svh);
+  }
+  .tut-chips {
+    margin-top: 0.7rem;
+    gap: 0.4rem 0.7rem;
+  }
+  .tut-chips .chip {
+    padding: 0.38rem 0.8rem;
+    font-size: 0.8rem;
+  }
+}
+@media (max-width: 600px) {
+  .hero.scene,
+  .hero.scene .hero-content {
+    min-height: 0;
+  }
+  .hero.scene {
+    height: 300svh;
+  }
+  .scene-logo {
+    width: clamp(110px, 16vh, 150px);
+  }
+  .scene-tag {
+    top: calc(var(--nav-h) + 3vh);
+  }
+  .scene-tag h2 {
+    font-size: clamp(1.8rem, 8vw, 2.4rem);
+  }
+  .scene-tag-card {
+    padding: 1.2rem 1.1rem 1.4rem;
+  }
+  .scene-tutorial {
+    height: 380svh;
+  }
+  .tut-copy {
+    min-height: 210px;
+  }
+}
+
 /* demo interactiva */
 .stage-demo {
   margin-top: 2rem;

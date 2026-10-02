@@ -3,9 +3,10 @@ import Link from "next/link";
 import AppFooter from "@/components/AppFooter";
 import Brand from "@/components/Brand";
 import HeroDemo from "@/components/HeroDemo";
-import LandingDemo from "@/components/LandingDemo";
 import Reveal from "@/components/Reveal";
+import HeroScene from "@/components/landing/HeroScene";
 import ScrollFx from "@/components/landing/ScrollFx";
+import TutorialScene from "@/components/landing/TutorialScene";
 import SoftBackdrop from "@/components/soft/SoftBackdrop";
 import { CloudUpload, GrandPiano, Sprout } from "@/components/soft/Illustrations";
 import { BILLING_PRODUCTS } from "@/lib/billing/catalog";
@@ -46,55 +47,11 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* HERO: el reproductor real, en acuarela, detrás de la caligrafía */}
-      <section className="hero" aria-label="Pianissimo">
-        <div className="hero-bg" data-hero-bg>
-          <HeroDemo speed={0.75} startAt={3} minWidth={1100} />
-        </div>
-        <div className="hero-shade" aria-hidden="true" />
-        <SoftBackdrop rain={0} clouds={false} />
-        <div className="hero-content" data-hero-fade>
-          <p className="hero-brand">Pianissimo</p>
-          <h1 className="hero-title">
-            Tu canción. <em>Tu piano.</em> A tu ritmo.
-          </h1>
-          <p className="hero-lead">
-            Sube un audio de piano y míralo caer sobre un teclado real. Practica despacio, en loop y mano por mano,
-            sin prisa.
-          </p>
-          <div className="hero-cta">
-            <Link className="btn primary lg" href="/welcome">
-              Comenzar
-            </Link>
-            <Link className="btn lg" href="#demo">
-              Ver cómo funciona
-            </Link>
-          </div>
-          <p className="hero-fine">
-            {FREE_CREDITS} vistas previas de {FREE_PREVIEW_SECONDS} s gratis · sin tarjeta
-          </p>
-        </div>
-        <div className="hero-scroll" aria-hidden="true">
-          <i />
-          <span>Desliza</span>
-        </div>
-      </section>
+      {/* HERO: escena contada con el scroll (logo → teclado real) */}
+      <HeroScene />
 
-      {/* DEMO INTERACTIVA */}
-      <section className="section" id="demo" aria-labelledby="demo-title">
-        <div className="section-inner">
-          <Reveal className="section-head" data-parallax="-0.06">
-            <p className="eyebrow">Así se practica</p>
-            <h2 id="demo-title">
-              Tócalo con los <span className="script">controles de verdad</span>
-            </h2>
-            <p>Baja la velocidad, repite un pasaje o quédate con una mano. Los mismos controles que tendrás en tu tutorial.</p>
-          </Reveal>
-          <Reveal delay={120}>
-            <LandingDemo />
-          </Reveal>
-        </div>
-      </section>
+      {/* DEMO INTERACTIVA: el reproductor real, paso a paso con el scroll */}
+      <TutorialScene />
 
       {/* TRES MOMENTOS */}
       <section className="section" aria-labelledby="how-title">

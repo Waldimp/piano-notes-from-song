@@ -35,6 +35,11 @@ export type HeroDemoProps = {
   minWidth?: number;
   showNames?: boolean;
   className?: string;
+  /**
+   * Desplazamiento de tiempo externo (en segundos) que se suma al reloj
+   * propio sin re-renderizar: las escenas de scroll lo mueven por frame.
+   */
+  offsetRef?: React.RefObject<{ seconds: number } | null>;
 };
 
 export default function HeroDemo({
@@ -45,6 +50,7 @@ export default function HeroDemo({
   minWidth = 900,
   showNames = false,
   className = "",
+  offsetRef,
 }: HeroDemoProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -64,7 +70,9 @@ export default function HeroDemo({
     let cssW = 0;
     let cssH = 0;
     let t = startAt;
+    let spCur = propsRef.current.speed; // la velocidad cambia con suavidad
     let last = performance.now();
+    const wrapTime = (v: number) => ((v % DEMO_DURATION) + DEMO_DURATION) % DEMO_DURATION;
 
     const resize = () => {
       const rect = wrap.getBoundingClientRect();
@@ -80,12 +88,12 @@ export default function HeroDemo({
     };
 
     const frame = () => {
-      const { speed: sp, handFilter: hf, loop: lp, showNames: sn } = propsRef.current;
+      const { handFilter: hf, loop: lp, showNames: sn } = propsRef.current;
       const [a, b] = lp ?? [null, null];
       drawFrame(ctx, cssW, cssH, {
         notes: NOTES,
         maxNoteDuration: MAX_DUR,
-        currentTime: t,
+        currentTime: wrapTime(t + (offsetRef?.current?.seconds ?? 0)),
         loopA: a,
         loopB: b,
         handFilter: hf,
@@ -97,7 +105,8 @@ export default function HeroDemo({
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       const { speed: sp, loop: lp } = propsRef.current;
-      t += dt * sp;
+      spCur += (sp - spCur) * Math.min(1, dt * 3.5);
+      t += dt * spCur;
       if (lp && t >= lp[1]) t = lp[0];
       if (t > DEMO_DURATION) t = 0;
       frame();
@@ -140,7 +149,7 @@ export default function HeroDemo({
       io.disconnect();
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [startAt, minWidth]);
+  }, [startAt, minWidth, offsetRef]);
 
   return (
     <div ref={wrapRef} className={`hero-demo${className ? ` ${className}` : ""}`} aria-hidden="true">
