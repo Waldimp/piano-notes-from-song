@@ -1562,6 +1562,144 @@ html.fx-scroll {
   }
 }
 
+/* escena "del audio a tus manos" */
+.scene-flow {
+  padding: 0;
+  height: 380svh;
+}
+.flow-kicker {
+  position: absolute;
+  top: -2.2rem;
+  left: 0;
+  color: var(--muted);
+}
+.tut-step .eyebrow .n {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: 0.3rem;
+  border-radius: 50%;
+  background: var(--matcha);
+  color: #fffdf8;
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+.flow-art {
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-deep), var(--ring);
+  padding: 1rem;
+  overflow: hidden;
+}
+.flow-art svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.flow-art .staff,
+.flow-art .keys {
+  opacity: 0;
+  will-change: opacity, transform;
+}
+.flow-art .fp,
+.flow-art .fs {
+  will-change: transform;
+}
+
+/* manos sobre el teclado (feature "Manos") */
+.hands-visual {
+  padding: 0;
+}
+.hands-visual .hands {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--r-lg);
+}
+.hands .fall {
+  animation: hands-fall linear infinite;
+  opacity: 0;
+}
+.hands .tip,
+.hands .key-lit {
+  opacity: 0;
+  animation: hands-lit linear infinite;
+}
+.hands .tip {
+  animation-name: hands-tip;
+}
+@keyframes hands-fall {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  86% {
+    transform: translateY(var(--to));
+    opacity: 1;
+  }
+  94%,
+  100% {
+    transform: translateY(var(--to));
+    opacity: 0;
+  }
+}
+@keyframes hands-lit {
+  0%,
+  84% {
+    opacity: 0;
+  }
+  88% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes hands-tip {
+  0%,
+  84% {
+    opacity: 0;
+    transform: scale(0.6);
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  88% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+.hands .tip {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (max-width: 900px) {
+  .scene-flow {
+    height: 360svh;
+  }
+  .flow-kicker {
+    position: static;
+    margin-bottom: 0.4rem;
+  }
+  .flow-art {
+    order: -1;
+    padding: 0.6rem;
+  }
+}
+@media (max-width: 600px) {
+  .cta-final .soft-rain {
+    display: none;
+  }
+}
+
 /* demo interactiva */
 .stage-demo {
   margin-top: 2rem;

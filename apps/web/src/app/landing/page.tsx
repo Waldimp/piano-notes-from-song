@@ -4,24 +4,16 @@ import AppFooter from "@/components/AppFooter";
 import Brand from "@/components/Brand";
 import HeroDemo from "@/components/HeroDemo";
 import Reveal from "@/components/Reveal";
+import FlowScene from "@/components/landing/FlowScene";
 import HeroScene from "@/components/landing/HeroScene";
 import ScrollFx from "@/components/landing/ScrollFx";
 import TutorialScene from "@/components/landing/TutorialScene";
+import HandsIllo from "@/components/soft/HandsIllo";
 import SoftBackdrop from "@/components/soft/SoftBackdrop";
 import { CloudUpload, GrandPiano, Sprout } from "@/components/soft/Illustrations";
 import { BILLING_PRODUCTS } from "@/lib/billing/catalog";
 import { FREE_CREDITS, FREE_PREVIEW_SECONDS } from "@/lib/beta/preview";
 import { GENRES } from "@/lib/prefs";
-
-const WAVE = [30, 55, 80, 45, 70, 95, 60, 35, 75, 50, 85, 40];
-const FALL = [
-  { x: 6, l: false },
-  { x: 22, l: true },
-  { x: 38, l: false },
-  { x: 54, l: false },
-  { x: 70, l: true },
-  { x: 86, l: false },
-];
 
 export default function LandingPage() {
   const mini = BILLING_PRODUCTS.mini_pack;
@@ -53,49 +45,8 @@ export default function LandingPage() {
       {/* DEMO INTERACTIVA: el reproductor real, paso a paso con el scroll */}
       <TutorialScene />
 
-      {/* TRES MOMENTOS */}
-      <section className="section" aria-labelledby="how-title">
-        <div className="section-inner">
-          <Reveal className="section-head" data-parallax="-0.06">
-            <p className="eyebrow">De un audio a tus manos</p>
-            <h2 id="how-title">
-              Tres momentos, <span className="script">un minuto</span>
-            </h2>
-          </Reveal>
-          <div className="moments">
-            <Reveal className="moment" delay={0} data-parallax="0.05">
-              <div className="motif motif-wave" aria-hidden="true">
-                {WAVE.map((h, i) => (
-                  <i key={i} style={{ ["--h" as string]: h, ["--i" as string]: i }} />
-                ))}
-              </div>
-              <span className="n">Sube</span>
-              <h3>Una grabación de piano</h3>
-              <p>MP3, WAV, M4A, FLAC u OGG. Un cover que te guste, una clase, tu propia toma.</p>
-            </Reveal>
-            <Reveal className="moment" delay={120} data-parallax="0.12">
-              <div className="motif motif-detect" aria-hidden="true">
-                {Array.from({ length: 48 }, (_, i) => (
-                  <i key={i} style={{ ["--i" as string]: (i * 7) % 48 }} />
-                ))}
-              </div>
-              <span className="n">Escuchamos</span>
-              <h3>La IA detecta cada nota</h3>
-              <p>Altura, duración, intensidad y pedal, con un modelo entrenado solo en piano.</p>
-            </Reveal>
-            <Reveal className="moment" delay={240} data-parallax="0.19">
-              <div className="motif motif-fall" aria-hidden="true">
-                {FALL.map((n, i) => (
-                  <i key={i} className={n.l ? "l" : ""} style={{ ["--x" as string]: n.x, ["--i" as string]: i }} />
-                ))}
-              </div>
-              <span className="n">Practicas</span>
-              <h3>Notas que caen sobre 88 teclas</h3>
-              <p>Ves qué tecla, cuándo y cuánto. Y el tutorial espera tu ritmo, no al revés.</p>
-            </Reveal>
-          </div>
-        </div>
-      </section>
+      {/* DE UN AUDIO A TUS MANOS: onda → pentagrama → teclado, con el scroll */}
+      <FlowScene />
 
       {/* TU ESTILO */}
       <section className="section" aria-labelledby="style-title">
@@ -163,8 +114,8 @@ export default function LandingPage() {
                 <h3>Matcha para la derecha, chai para la izquierda</h3>
                 <p>Filtra una mano para estudiarla sola y ve cómo encaja con la otra. Separación aproximada, pensada para practicar.</p>
               </div>
-              <div className="feature-visual" data-parallax="0.18">
-                <HeroDemo speed={0.7} handFilter="left" startAt={12} minWidth={640} />
+              <div className="feature-visual hands-visual" data-parallax="0.18">
+                <HandsIllo />
               </div>
             </Reveal>
 
@@ -258,7 +209,7 @@ export default function LandingPage() {
 
       {/* CTA FINAL */}
       <section className="cta-final" aria-labelledby="cta-title">
-        <SoftBackdrop rain={0.6} />
+        <SoftBackdrop rain={0.6} rainEdges />
         <Reveal style={{ position: "relative" }} data-parallax="0.12">
           <GrandPiano className="cta-illo" />
           <h2 id="cta-title">

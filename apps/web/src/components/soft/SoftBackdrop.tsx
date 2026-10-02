@@ -10,6 +10,8 @@ type Props = {
   /** Nubes acuarela abajo (como en la inspo). */
   clouds?: boolean;
   sparkles?: boolean;
+  /** Lluvia solo en los bordes (20 % a cada lado): deja limpio el centro para logo y texto. */
+  rainEdges?: boolean;
   className?: string;
 };
 
@@ -37,7 +39,9 @@ const SPARKS = [
   { x: 92, y: 70, d: 1.9 },
 ];
 
-export default function SoftBackdrop({ rain = 1, clouds = true, sparkles = true, className = "" }: Props) {
+const edgeX = (x: number) => (x < 50 ? 2 + x * 0.36 : 80 + (x - 50) * 0.36);
+
+export default function SoftBackdrop({ rain = 1, clouds = true, sparkles = true, rainEdges = false, className = "" }: Props) {
   return (
     <div className={`soft-backdrop${className ? ` ${className}` : ""}`} aria-hidden="true">
       <i className="soft-blob a" />
@@ -49,7 +53,7 @@ export default function SoftBackdrop({ rain = 1, clouds = true, sparkles = true,
             className={`soft-rain ${r.c}`}
             style={
               {
-                "--x": `${r.x}%`,
+                "--x": `${rainEdges ? edgeX(r.x) : r.x}%`,
                 "--h": `${r.h}vh`,
                 "--d": `${r.d}s`,
                 "--t": `${r.t}s`,
