@@ -36,10 +36,11 @@ export type HeroDemoProps = {
   showNames?: boolean;
   className?: string;
   /**
-   * Desplazamiento de tiempo externo (en segundos) que se suma al reloj
-   * propio sin re-renderizar: las escenas de scroll lo mueven por frame.
+   * Control externo por frame, sin re-renderizar: `seconds` se suma al reloj
+   * propio (scrub con el scroll) y `rate` multiplica su avance (0 = notas
+   * detenidas). Las escenas de scroll lo mueven desde sus refs.
    */
-  offsetRef?: React.RefObject<{ seconds: number } | null>;
+  offsetRef?: React.RefObject<{ seconds: number; rate?: number } | null>;
 };
 
 export default function HeroDemo({
@@ -106,7 +107,7 @@ export default function HeroDemo({
       last = now;
       const { speed: sp, loop: lp } = propsRef.current;
       spCur += (sp - spCur) * Math.min(1, dt * 3.5);
-      t += dt * spCur;
+      t += dt * spCur * (offsetRef?.current?.rate ?? 1);
       if (lp && t >= lp[1]) t = lp[0];
       if (t > DEMO_DURATION) t = 0;
       frame();

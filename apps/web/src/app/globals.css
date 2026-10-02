@@ -1356,6 +1356,27 @@ html.fx-scroll {
     transform: none;
   }
 }
+.hero.scene .hero-bg {
+  will-change: transform, opacity;
+}
+.scene-shards {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  visibility: hidden;
+  overflow: hidden;
+}
+.scene-shards i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  border-radius: 999px;
+  opacity: 0;
+  will-change: transform, opacity;
+  box-shadow: 0 2px 10px rgba(114, 92, 58, 0.08);
+}
 .hero-text {
   display: flex;
   flex-direction: column;
