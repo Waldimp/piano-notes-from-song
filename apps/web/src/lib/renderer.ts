@@ -87,6 +87,54 @@ export interface FrameState {
   loopB: number | null;
   handFilter: HandFilter;
   view: ViewOptions;
+  /** Opacidad extra de las barras que caen (0–1, por defecto 1). El teclado no se ve afectado. */
+  notesAlpha?: number;
+}
+
+/** Rectángulo de una barra visible, en píxeles del lienzo, con su color plano. */
+export interface NoteRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  color: string;
+  hand: "left" | "right";
+}
+
+/**
+ * Geometría de las barras visibles en un instante, igual que las dibuja
+ * drawFallingNotes. Lo usan las escenas de la landing para que elementos
+ * del DOM aterricen exactamente sobre las notas reales.
+ */
+export function noteRects(width: number, height: number, state: FrameState): NoteRect[] {
+  const keyboardHeight = Math.max(56, height * KEYBOARD_HEIGHT_RATIO);
+  const keyboardY = height - keyboardHeight;
+  const { notes, currentTime, view } = state;
+  const lookahead = keyboardY / PIXELS_PER_SECOND;
+  const { lo, hi } = visibleRange(notes, currentTime, lookahead, state.maxNoteDuration);
+  const out: NoteRect[] = [];
+  for (let i = lo; i < hi; i++) {
+    const note = notes[i];
+    const end = visualEnd(note, view.noteDurationCap);
+    if (end <= currentTime) continue;
+    const bar = noteBar({ start: note.start, end }, currentTime, keyboardY, PIXELS_PER_SECOND);
+    const top = Math.max(0, bar.topY);
+    const bottom = Math.min(keyboardY, bar.bottomY);
+    if (bottom <= top) continue;
+    const g = keyGeometry(note.pitch, width);
+    const black = isBlackKey(note.pitch);
+    const barWidth = black ? g.width : g.width * 0.84;
+    const palette = HAND_COLORS[handOf(note)];
+    out.push({
+      x: g.x + (g.width - barWidth) / 2,
+      y: top,
+      w: barWidth,
+      h: bottom - top,
+      color: black ? palette.onBlack : palette.onWhite,
+      hand: handOf(note),
+    });
+  }
+  return out;
 }
 
 export function drawFrame(
@@ -112,7 +160,7 @@ export function drawFrame(
 
   drawLaneGuides(ctx, width, keyboardY);
   drawLoopBand(ctx, width, keyboardY, state);
-  drawFallingNotes(ctx, width, keyboardY, state, range);
+  if ((state.notesAlpha ?? 1) > 0) drawFallingNotes(ctx, width, keyboardY, state, range);
   drawKeyboard(ctx, width, keyboardY, keyboardHeight, state, range);
 }
 
@@ -190,7 +238,7 @@ function drawFallingNotes(
     const barWidth = black ? g.width : g.width * 0.84;
     const x = g.x + (g.width - barWidth) / 2;
     const palette = HAND_COLORS[handOf(note)];
-    const alpha = noteAlpha(note, state.handFilter);
+    const alpha = noteAlpha(note, state.handFilter) * (state.notesAlpha ?? 1);
     const h = bottom - top;
     const radius = Math.min(5, barWidth / 2, h / 2);
     const sounding = note.start <= currentTime;

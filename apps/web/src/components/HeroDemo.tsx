@@ -13,7 +13,7 @@ import type { PianoNote } from "@piano/contracts";
 
 import { DEMO_DURATION, DEMO_NOTES } from "@/lib/demo/notes";
 import { maxDuration } from "@/lib/falling";
-import { DEFAULT_VIEW_OPTIONS, type HandFilter, drawFrame } from "@/lib/renderer";
+import { DEFAULT_VIEW_OPTIONS, type HandFilter, type NoteRect, drawFrame, noteRects } from "@/lib/renderer";
 
 const NOTES: PianoNote[] = DEMO_NOTES.map(([pitch, start, end, velocity, hand]) => ({
   pitch,
@@ -40,7 +40,14 @@ export type HeroDemoProps = {
    * propio (scrub con el scroll) y `rate` multiplica su avance (0 = notas
    * detenidas). Las escenas de scroll lo mueven desde sus refs.
    */
-  offsetRef?: React.RefObject<{ seconds: number; rate?: number } | null>;
+  offsetRef?: React.RefObject<{ seconds: number; rate?: number; notesAlpha?: number } | null>;
+  /** Recibe utilidades para leer la geometría actual (coordenadas de viewport). */
+  controlRef?: React.RefObject<HeroDemoControl | null>;
+};
+
+export type HeroDemoControl = {
+  /** Barras visibles ahora mismo, en píxeles del viewport. */
+  noteRects: () => NoteRect[];
 };
 
 export default function HeroDemo({
@@ -52,6 +59,7 @@ export default function HeroDemo({
   showNames = false,
   className = "",
   offsetRef,
+  controlRef,
 }: HeroDemoProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -88,10 +96,10 @@ export default function HeroDemo({
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
 
-    const frame = () => {
+    const stateNow = () => {
       const { handFilter: hf, loop: lp, showNames: sn } = propsRef.current;
       const [a, b] = lp ?? [null, null];
-      drawFrame(ctx, cssW, cssH, {
+      return {
         notes: NOTES,
         maxNoteDuration: MAX_DUR,
         currentTime: wrapTime(t + (offsetRef?.current?.seconds ?? 0)),
@@ -99,8 +107,20 @@ export default function HeroDemo({
         loopB: b,
         handFilter: hf,
         view: { ...DEFAULT_VIEW_OPTIONS, showNoteNames: sn, noteDurationCap: 1.5 },
-      });
+        notesAlpha: offsetRef?.current?.notesAlpha ?? 1,
+      };
     };
+    const frame = () => drawFrame(ctx, cssW, cssH, stateNow());
+    if (controlRef) {
+      controlRef.current = {
+        noteRects: () => {
+          const r = canvas.getBoundingClientRect();
+          const sx = r.width / cssW;
+          const sy = r.height / cssH;
+          return noteRects(cssW, cssH, stateNow()).map((n) => ({ ...n, x: r.left + n.x * sx, y: r.top + n.y * sy, w: n.w * sx, h: n.h * sy }));
+        },
+      };
+    }
 
     const tick = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
@@ -146,11 +166,12 @@ export default function HeroDemo({
 
     return () => {
       stop();
+      if (controlRef) controlRef.current = null;
       ro.disconnect();
       io.disconnect();
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [startAt, minWidth, offsetRef]);
+  }, [startAt, minWidth, offsetRef, controlRef]);
 
   return (
     <div ref={wrapRef} className={`hero-demo${className ? ` ${className}` : ""}`} aria-hidden="true">
