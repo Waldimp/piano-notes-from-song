@@ -1631,6 +1631,23 @@ html.fx-scroll {
 .hands .tip {
   animation-name: hands-tip;
 }
+.hands .finger {
+  animation: hands-press linear infinite;
+  will-change: transform;
+}
+@keyframes hands-press {
+  0%,
+  83% {
+    transform: translate(0, 0);
+  }
+  87% {
+    transform: translate(var(--px, 0px), var(--py, 6px));
+  }
+  94%,
+  100% {
+    transform: translate(0, 0);
+  }
+}
 @keyframes hands-fall {
   0% {
     transform: translateY(0);

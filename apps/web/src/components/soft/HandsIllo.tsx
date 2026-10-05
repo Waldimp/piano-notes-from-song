@@ -1,10 +1,12 @@
 /**
  * Dos manos posadas sobre un teclado, vistas desde arriba: las barras caen por
- * el carril de cada dedo y, al llegar, la yema y la tecla se encienden (chai la
- * izquierda, matcha la derecha). Cada mano es una sola silueta cerrada (pulgar
- * incluido) con pliegues de nudillos y una sombra suave sobre las teclas; la
- * muñeca sale por el borde inferior. Todo CSS: cada carril tiene su duración y
- * retardo, y la yema comparte el reloj de su barra.
+ * el carril de cada dedo y, al llegar, el dedo presiona (baja un poco hacia la
+ * palma), la yema y la tecla se encienden (chai la izquierda, matcha la
+ * derecha). Cada dedo es una pieza independiente que se mueve sola; la palma
+ * se dibuja encima de las bases de los dedos (misma piel, sin trazo) para
+ * esconder lo que sobra, y los trazos fijos (bordes de la palma y membranas)
+ * van al final. Todo CSS: cada carril tiene su duración y retardo, y el dedo,
+ * la yema y la tecla comparten reloj.
  */
 
 const W = 600;
@@ -17,6 +19,8 @@ const CHAI = "#d2ab80";
 const INK = "#725c3a";
 const SKIN = "#f5ebdd";
 const BLACK_AFTER = new Set([0, 1, 3, 4, 5]);
+/** Cuánto baja un dedo al presionar (px). */
+const PRESS = 8;
 
 /** Dedos índice → meñique en el espacio local de la mano (x = 0 es el pulgar). */
 type Finger = { cx: number; tip: number; hw: number };
@@ -27,7 +31,9 @@ const FINGERS: Finger[] = [
   { cx: S * 4, tip: 268, hw: 13 },
 ];
 /** Pulgar: centro del arco de la punta, radio y cuánto se abre hacia afuera (grados). */
-const THUMB = { cx: -8, tipY: 314, r: 13.5, tilt: 24 };
+const THUMB = { cx: -16, tipY: 308, r: 15, tilt: 30 };
+/** Posición (sobre el eje del pulgar) donde la palma lo tapa y nace la membrana. */
+const A_CROSS = -30;
 const TH_RAD = (THUMB.tilt * Math.PI) / 180;
 /** Eje del pulgar (de la base a la punta) y su perpendicular (hacia el índice). */
 const TH_D = { x: -Math.sin(TH_RAD), y: -Math.cos(TH_RAD) };
@@ -35,9 +41,9 @@ const TH_N = { x: Math.cos(TH_RAD), y: -Math.sin(TH_RAD) };
 const thPt = (a: number, b: number) => ({ x: THUMB.cx + TH_D.x * a + TH_N.x * b, y: THUMB.tipY + TH_D.y * a + TH_N.y * b });
 /** Valles entre dedos (índice·medio, medio·anular, anular·meñique). */
 const VALLEYS = [354, 350, 358];
-/** Donde posa la yema de cada carril (pulgar + 4 dedos). */
-const THUMB_PAD = thPt(-2, 0);
-const TIPS = [THUMB_PAD, ...FINGERS.map((f) => ({ x: f.cx, y: f.tip + 13 }))];
+/** Horcadura pulgar·índice y base exterior del meñique. */
+const CROTCH_Y = 352;
+const PINKY_BASE = 352;
 
 /** Reloj de cada carril: duración y retardo, alternando manos para que suene a melodía. */
 const CLOCK = [
@@ -54,90 +60,151 @@ const CLOCK = [
 ] as const;
 
 const n1 = (v: number) => v.toFixed(1);
+const pt = (p: { x: number; y: number }) => `${n1(p.x)} ${n1(p.y)}`;
 
-/** Silueta de una mano derecha (pulgar a la izquierda), de la muñeca a la muñeca. */
-function handOutline(): string {
+type Piece = {
+  path: string;
+  creases: string[];
+  nail: { cx: number; cy: number; rx: number; ry: number; rot: number };
+  tip: { x: number; y: number };
+  press: { x: number; y: number };
+};
+
+/** Un dedo recto: cápsula con leve estrechamiento hacia la yema; la base queda bajo la palma. */
+function straightFinger(f: Finger, baseL: number, baseR: number): Piece {
+  const tipHw = f.hw * 0.9;
+  const l = f.cx - f.hw;
+  const r = f.cx + f.hw;
+  const bottom = Math.max(baseL, baseR) + f.hw * 1.3;
+  const path = [
+    `M ${n1(l)} ${n1(baseL)}`,
+    `C ${n1(l)} ${n1(baseL - 30)}, ${n1(f.cx - tipHw)} ${n1(f.tip + 40)}, ${n1(f.cx - tipHw)} ${n1(f.tip + tipHw)}`,
+    `C ${n1(f.cx - tipHw)} ${n1(f.tip + tipHw * 0.42)}, ${n1(f.cx - tipHw * 0.55)} ${n1(f.tip)}, ${n1(f.cx)} ${n1(f.tip)}`,
+    `C ${n1(f.cx + tipHw * 0.55)} ${n1(f.tip)}, ${n1(f.cx + tipHw)} ${n1(f.tip + tipHw * 0.42)}, ${n1(f.cx + tipHw)} ${n1(f.tip + tipHw)}`,
+    `C ${n1(f.cx + tipHw)} ${n1(f.tip + 40)}, ${n1(r)} ${n1(baseR - 30)}, ${n1(r)} ${n1(baseR)}`,
+    `C ${n1(r)} ${n1(bottom)}, ${n1(l)} ${n1(bottom)}, ${n1(l)} ${n1(baseL)}`,
+    "Z",
+  ].join(" ");
+  const creases = [0.33, 0.62].map((k, j) => {
+    const y = f.tip + 13 + (VALLEYS[0] - 24 - f.tip - 13) * k;
+    const ww = f.hw * 1.1 * (j === 0 ? 0.78 : 0.9);
+    return `M ${n1(f.cx - ww / 2)} ${n1(y)} q ${n1(ww / 2)} -4.5 ${n1(ww)} 0`;
+  });
+  return {
+    path,
+    creases,
+    nail: { cx: f.cx, cy: f.tip + 9.5, rx: f.hw * 0.5, ry: 6.5, rot: 0 },
+    tip: { x: f.cx, y: f.tip + 13 },
+    press: { x: 0, y: PRESS },
+  };
+}
+
+/** El pulgar: cápsula inclinada sobre su eje; su base también queda bajo la palma. */
+function thumb(): Piece {
   const t = THUMB;
-  const f0 = FINGERS[0];
-  const f3 = FINGERS[3];
-  const d: string[] = [];
-  // muñeca, lado del pulgar
-  d.push(`M ${n1(-22)} ${H + 24}`);
-  // borde exterior del pulgar (inclinado hacia afuera) hasta su punta
-  const k = t.r * 0.56; // control de los arcos
-  const O = thPt(-4, -t.r); // lado exterior, justo bajo el arco de la punta
-  const Oc = thPt(-30, -t.r - 2);
-  const A = thPt(t.r, 0); // ápice
-  const I = thPt(-4, t.r); // lado interior
-  const Ic = thPt(-30, t.r);
-  d.push(`C ${n1(-28)} ${n1(392)}, ${n1(Oc.x)} ${n1(Oc.y)}, ${n1(O.x)} ${n1(O.y)}`);
-  const c1 = thPt(k - 4, -t.r);
-  const c2 = thPt(t.r, -k);
-  d.push(`C ${n1(c1.x)} ${n1(c1.y)}, ${n1(c2.x)} ${n1(c2.y)}, ${n1(A.x)} ${n1(A.y)}`);
-  const c3 = thPt(t.r, k);
-  const c4 = thPt(k - 4, t.r);
-  d.push(`C ${n1(c3.x)} ${n1(c3.y)}, ${n1(c4.x)} ${n1(c4.y)}, ${n1(I.x)} ${n1(I.y)}`);
-  // borde interior del pulgar hasta la horcadura con el índice
-  const crotchX = f0.cx - f0.hw;
-  d.push(`C ${n1(Ic.x)} ${n1(Ic.y)}, ${n1(crotchX - 12)} ${n1(366)}, ${n1(crotchX)} ${n1(378)}`);
-  // cuatro dedos
+  const k = t.r * 0.56;
+  const path = [
+    `M ${pt(thPt(-64, -t.r))}`,
+    `L ${pt(thPt(-4, -t.r))}`,
+    `C ${pt(thPt(k - 4, -t.r))}, ${pt(thPt(t.r, -k))}, ${pt(thPt(t.r, 0))}`,
+    `C ${pt(thPt(t.r, k))}, ${pt(thPt(k - 4, t.r))}, ${pt(thPt(-4, t.r))}`,
+    `L ${pt(thPt(-64, t.r))}`,
+    "Z",
+  ].join(" ");
+  const nailC = thPt(t.r - 9.5, 0);
+  return {
+    path,
+    creases: [],
+    nail: { cx: nailC.x, cy: nailC.y, rx: t.r * 0.5, ry: 6, rot: -t.tilt },
+    tip: thPt(-2, 0),
+    press: { x: -TH_D.x * PRESS, y: -TH_D.y * PRESS },
+  };
+}
+
+/** Piezas en orden de carril: pulgar, índice, medio, anular, meñique. */
+const PIECES: Piece[] = [
+  thumb(),
+  straightFinger(FINGERS[0], CROTCH_Y, VALLEYS[0]),
+  straightFinger(FINGERS[1], VALLEYS[0], VALLEYS[1]),
+  straightFinger(FINGERS[2], VALLEYS[1], VALLEYS[2]),
+  straightFinger(FINGERS[3], VALLEYS[2], PINKY_BASE),
+];
+
+const crotchX = FINGERS[0].cx - FINGERS[0].hw;
+const pinkyR = FINGERS[3].cx + FINGERS[3].hw;
+const WRIST_L = { x: -22, y: H + 24 };
+const WRIST_R = { x: pinkyR + 10, y: H + 24 };
+
+/** Palma (misma piel, sin trazo): tapa las bases de los dedos sin tocar sus bordes visibles. */
+function palmCover(): string {
+  const r = THUMB.r;
+  const o = 1; // sale 1 px por fuera de cada borde: el trazo fijo lo tapa después
+  const d: string[] = [`M ${pt(WRIST_L)}`];
+  d.push(`C -24 400, ${pt(thPt(A_CROSS - 14, -r - o))}, ${pt(thPt(A_CROSS, -r - o))}`);
+  d.push(`L ${pt(thPt(A_CROSS, r + o))}`);
+  d.push(`C ${pt(thPt(A_CROSS - 12, r + o))}, ${n1(crotchX - 1)} 344, ${n1(crotchX + o)} ${n1(CROTCH_Y + o)}`);
   FINGERS.forEach((f, i) => {
-    const tipHw = f.hw * 0.9;
-    const l = f.cx - f.hw;
-    const r = f.cx + f.hw;
-    const base = i === 0 ? 378 : VALLEYS[i - 1];
-    // lado izquierdo, con leve estrechamiento hacia la punta
-    d.push(`C ${n1(l)} ${n1(base - 30)}, ${n1(f.cx - tipHw)} ${n1(f.tip + 40)}, ${n1(f.cx - tipHw)} ${n1(f.tip + tipHw)}`);
-    // yema
-    d.push(`C ${n1(f.cx - tipHw)} ${n1(f.tip + tipHw * 0.42)}, ${n1(f.cx - tipHw * 0.55)} ${n1(f.tip)}, ${n1(f.cx)} ${n1(f.tip)}`);
-    d.push(`C ${n1(f.cx + tipHw * 0.55)} ${n1(f.tip)}, ${n1(f.cx + tipHw)} ${n1(f.tip + tipHw * 0.42)}, ${n1(f.cx + tipHw)} ${n1(f.tip + tipHw)}`);
-    // lado derecho hasta el valle con el siguiente dedo
     const next = FINGERS[i + 1];
+    const rightBase = next ? VALLEYS[i] : PINKY_BASE;
+    d.push(`L ${n1(f.cx + f.hw + o)} ${n1(rightBase - 10)}`);
     if (next) {
       const v = VALLEYS[i];
-      d.push(`C ${n1(f.cx + tipHw)} ${n1(f.tip + 40)}, ${n1(r)} ${n1(v - 30)}, ${n1(r)} ${n1(v - 10)}`);
-      d.push(`C ${n1(r)} ${n1(v - 1)}, ${n1(next.cx - next.hw)} ${n1(v - 1)}, ${n1(next.cx - next.hw)} ${n1(v - 10)}`);
-    } else {
-      d.push(`C ${n1(f.cx + tipHw)} ${n1(f.tip + 40)}, ${n1(r)} ${n1(330)}, ${n1(r)} ${n1(352)}`);
+      d.push(`C ${n1(f.cx + f.hw + o)} ${n1(v)}, ${n1(next.cx - next.hw - o)} ${n1(v)}, ${n1(next.cx - next.hw - o)} ${n1(v - 10)}`);
     }
   });
-  // borde exterior de la palma (lado del meñique) hasta la muñeca
-  const pr = f3.cx + f3.hw;
-  d.push(`C ${n1(pr + 6)} ${n1(380)}, ${n1(pr + 12)} ${n1(402)}, ${n1(pr + 10)} ${H + 24}`);
+  d.push(`C ${n1(pinkyR + 6 + o)} 380, ${n1(pinkyR + 12 + o)} 402, ${n1(WRIST_R.x + o)} ${n1(WRIST_R.y)}`);
   d.push("Z");
   return d.join(" ");
 }
 
-const OUTLINE = handOutline();
-
-/** Pliegues de nudillos: dos por dedo y uno en el pulgar. */
-function creases(): string[] {
+/** Trazos fijos: bordes de la palma y membranas entre dedos. */
+function palmStrokes(): string[] {
+  const r = THUMB.r;
   const out: string[] = [];
-  FINGERS.forEach((f) => {
-    const w = f.hw * 1.1;
-    [0.33, 0.62].forEach((k, j) => {
-      const y = f.tip + 13 + (VALLEYS[0] - 24 - f.tip - 13) * k;
-      const ww = w * (j === 0 ? 0.78 : 0.9);
-      out.push(`M ${n1(f.cx - ww / 2)} ${n1(y)} q ${n1(ww / 2)} ${n1(-4.5)} ${n1(ww)} 0`);
-    });
+  out.push(`M ${pt(WRIST_L)} C -24 400, ${pt(thPt(A_CROSS - 14, -r))}, ${pt(thPt(A_CROSS, -r))}`);
+  out.push(`M ${pt(thPt(A_CROSS, r))} C ${pt(thPt(A_CROSS - 12, r))}, ${n1(crotchX - 2)} 343, ${n1(crotchX)} ${n1(CROTCH_Y)}`);
+  FINGERS.forEach((f, i) => {
+    const next = FINGERS[i + 1];
+    if (!next) return;
+    const v = VALLEYS[i];
+    out.push(`M ${n1(f.cx + f.hw)} ${n1(v - 10)} C ${n1(f.cx + f.hw)} ${n1(v - 1)}, ${n1(next.cx - next.hw)} ${n1(v - 1)}, ${n1(next.cx - next.hw)} ${n1(v - 10)}`);
   });
-  const a = thPt(-36, -8);
-  const b = thPt(-33, 9);
-  const m = thPt(-30, 0);
-  out.push(`M ${n1(a.x)} ${n1(a.y)} Q ${n1(m.x)} ${n1(m.y)} ${n1(b.x)} ${n1(b.y)}`);
+  out.push(`M ${n1(pinkyR)} ${n1(PINKY_BASE - 10)} L ${n1(pinkyR)} ${n1(PINKY_BASE)} C ${n1(pinkyR + 6)} 380, ${n1(pinkyR + 12)} 402, ${pt(WRIST_R)}`);
   return out;
 }
-const CREASES = creases();
 
-/** Uñas: elipses finas en cada yema; la del pulgar va girada con el dedo. */
-type Nail = { cx: number; cy: number; rx: number; ry: number; rot: number };
-const NAILS: Nail[] = [
-  ...FINGERS.map((f) => ({ cx: f.cx, cy: f.tip + 9.5, rx: f.hw * 0.5, ry: 6.5, rot: 0 })),
-  (() => {
-    const c = thPt(THUMB.r - 9.5, 0);
-    return { cx: c.x, cy: c.y, rx: THUMB.r * 0.5, ry: 6, rot: -THUMB.tilt };
-  })(),
-];
+/** Silueta completa, solo para la sombra. */
+function shadowOutline(): string {
+  const r = THUMB.r;
+  const k = r * 0.56;
+  const d: string[] = [`M ${pt(WRIST_L)}`];
+  d.push(`C -24 400, ${pt(thPt(-40, -r))}, ${pt(thPt(-4, -r))}`);
+  d.push(`C ${pt(thPt(k - 4, -r))}, ${pt(thPt(r, -k))}, ${pt(thPt(r, 0))}`);
+  d.push(`C ${pt(thPt(r, k))}, ${pt(thPt(k - 4, r))}, ${pt(thPt(-4, r))}`);
+  d.push(`C ${pt(thPt(-42, r))}, ${n1(crotchX - 2)} 343, ${n1(crotchX)} ${n1(CROTCH_Y)}`);
+  FINGERS.forEach((f, i) => {
+    const tipHw = f.hw * 0.9;
+    const base = i === 0 ? CROTCH_Y : VALLEYS[i - 1];
+    d.push(`C ${n1(f.cx - f.hw)} ${n1(base - 30)}, ${n1(f.cx - tipHw)} ${n1(f.tip + 40)}, ${n1(f.cx - tipHw)} ${n1(f.tip + tipHw)}`);
+    d.push(`C ${n1(f.cx - tipHw)} ${n1(f.tip + tipHw * 0.42)}, ${n1(f.cx - tipHw * 0.55)} ${n1(f.tip)}, ${n1(f.cx)} ${n1(f.tip)}`);
+    d.push(`C ${n1(f.cx + tipHw * 0.55)} ${n1(f.tip)}, ${n1(f.cx + tipHw)} ${n1(f.tip + tipHw * 0.42)}, ${n1(f.cx + tipHw)} ${n1(f.tip + tipHw)}`);
+    const next = FINGERS[i + 1];
+    if (next) {
+      const v = VALLEYS[i];
+      d.push(`C ${n1(f.cx + tipHw)} ${n1(f.tip + 40)}, ${n1(f.cx + f.hw)} ${n1(v - 30)}, ${n1(f.cx + f.hw)} ${n1(v - 10)}`);
+      d.push(`C ${n1(f.cx + f.hw)} ${n1(v - 1)}, ${n1(next.cx - next.hw)} ${n1(v - 1)}, ${n1(next.cx - next.hw)} ${n1(v - 10)}`);
+    } else {
+      d.push(`C ${n1(f.cx + tipHw)} ${n1(f.tip + 40)}, ${n1(f.cx + f.hw)} 330, ${n1(f.cx + f.hw)} ${n1(PINKY_BASE)}`);
+    }
+  });
+  d.push(`C ${n1(pinkyR + 6)} 380, ${n1(pinkyR + 12)} 402, ${pt(WRIST_R)}`);
+  d.push("Z");
+  return d.join(" ");
+}
+
+const COVER = palmCover();
+const STROKES = palmStrokes();
+const SHADOW = shadowOutline();
 
 function Hand({ firstKey, mirror, color }: { firstKey: number; mirror: boolean; color: string }) {
   // mano derecha: el pulgar queda en firstKey y los dedos hacia la derecha;
@@ -146,32 +213,36 @@ function Hand({ firstKey, mirror, color }: { firstKey: number; mirror: boolean; 
   const transform = mirror ? `translate(${n1(originX)} 0) scale(-1 1)` : `translate(${n1(originX)} 0)`;
   return (
     <g className="hand" transform={transform}>
-      <path d={OUTLINE} fill={INK} opacity="0.16" filter="url(#hand-shadow)" transform="translate(4 10)" />
-      <path d={OUTLINE} fill={SKIN} stroke={INK} strokeWidth="2.2" strokeLinejoin="round" />
-      {CREASES.map((c, i) => (
-        <path key={i} d={c} stroke={INK} strokeWidth="1.2" fill="none" opacity="0.38" strokeLinecap="round" />
-      ))}
-      {NAILS.map((nl, i) => (
-        <ellipse
-          key={`n${i}`}
-          cx={n1(nl.cx)}
-          cy={n1(nl.cy)}
-          rx={n1(nl.rx)}
-          ry={n1(nl.ry)}
-          transform={nl.rot ? `rotate(${nl.rot} ${n1(nl.cx)} ${n1(nl.cy)})` : undefined}
-          fill="#fbf7f0"
-          stroke={INK}
-          strokeWidth="1.1"
-          opacity="0.55"
-        />
-      ))}
-      {TIPS.map((tp, i) => {
+      <path d={SHADOW} fill={INK} opacity="0.16" filter="url(#hand-shadow)" transform="translate(4 10)" />
+      {PIECES.map((pc, i) => {
         const lane = mirror ? 4 - i : i;
         const [dur, delay] = CLOCK[(mirror ? 0 : 5) + lane];
+        const timing = { animationDuration: `${dur}s`, animationDelay: `${delay}s` };
         return (
-          <circle key={`t${i}`} className="tip" cx={n1(tp.x)} cy={n1(tp.y)} r="8" fill={color} style={{ animationDuration: `${dur}s`, animationDelay: `${delay}s` }} />
+          <g key={i} className="finger" style={{ ["--px" as string]: `${n1(pc.press.x)}px`, ["--py" as string]: `${n1(pc.press.y)}px`, ...timing }}>
+            <path d={pc.path} fill={SKIN} stroke={INK} strokeWidth="2.2" strokeLinejoin="round" />
+            {pc.creases.map((c, j) => (
+              <path key={j} d={c} stroke={INK} strokeWidth="1.2" fill="none" opacity="0.38" strokeLinecap="round" />
+            ))}
+            <ellipse
+              cx={n1(pc.nail.cx)}
+              cy={n1(pc.nail.cy)}
+              rx={n1(pc.nail.rx)}
+              ry={n1(pc.nail.ry)}
+              transform={pc.nail.rot ? `rotate(${pc.nail.rot} ${n1(pc.nail.cx)} ${n1(pc.nail.cy)})` : undefined}
+              fill="#fbf7f0"
+              stroke={INK}
+              strokeWidth="1.1"
+              opacity="0.55"
+            />
+            <circle className="tip" cx={n1(pc.tip.x)} cy={n1(pc.tip.y)} r="8" fill={color} style={timing} />
+          </g>
         );
       })}
+      <path d={COVER} fill={SKIN} />
+      {STROKES.map((s, i) => (
+        <path key={`s${i}`} d={s} fill="none" stroke={INK} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      ))}
     </g>
   );
 }
