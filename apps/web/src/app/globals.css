@@ -1610,11 +1610,13 @@ html.fx-scroll {
 /* manos sobre el teclado (feature "Manos") */
 .hands-visual {
   padding: 0;
+  justify-content: flex-end;
 }
 .hands-visual .hands {
   display: block;
   width: 100%;
   height: auto;
+  margin-top: auto;
   border-radius: var(--r-lg);
 }
 .hands .fall {
