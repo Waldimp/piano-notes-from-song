@@ -5,7 +5,6 @@ import Link from "next/link";
 
 import AppFooter from "@/components/AppFooter";
 import AppHeader from "@/components/AppHeader";
-import Brand from "@/components/Brand";
 import { useAuth } from "@/components/AuthGate";
 import Reveal from "@/components/Reveal";
 import { BILLING_PRODUCTS } from "@/lib/billing/catalog";
@@ -75,19 +74,7 @@ export default function PricingPage() {
 
   return (
     <main className="shell">
-      {email ? (
-        <AppHeader />
-      ) : (
-        <header className="nav">
-          <div className="nav-inner">
-            <Brand href="/landing" />
-            <div className="nav-spacer" />
-            <Link className="btn small" href="/login">
-              Entrar
-            </Link>
-          </div>
-        </header>
-      )}
+      <AppHeader />
 
       <section className="section-head" style={{ margin: "3rem auto 0", textAlign: "center", maxWidth: 680 }}>
         <p className="eyebrow">Precios</p>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import AppFooter from "@/components/AppFooter";
-import Brand from "@/components/Brand";
+import AppHeader from "@/components/AppHeader";
 import HeroDemo from "@/components/HeroDemo";
 import Reveal from "@/components/Reveal";
 import FlowScene from "@/components/landing/FlowScene";
@@ -23,21 +23,7 @@ export default function LandingPage() {
   return (
     <main className="landing">
       <ScrollFx />
-      <header className="nav floating">
-        <div className="nav-inner">
-          <Brand href="/landing" />
-          <div className="nav-spacer" />
-          <Link className="btn ghost small" href="/guia">
-            Guía
-          </Link>
-          <Link className="btn ghost small" href="/pricing">
-            Precios
-          </Link>
-          <Link className="btn small" href="/login">
-            Entrar
-          </Link>
-        </div>
-      </header>
+      <AppHeader floating />
 
       {/* HERO: escena contada con el scroll (logo → teclado real) */}
       <HeroScene />

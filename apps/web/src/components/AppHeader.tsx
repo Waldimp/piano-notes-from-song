@@ -11,15 +11,26 @@ type Props = {
   title?: string;
   subtitle?: string;
   actions?: ReactNode;
+  /** Barra transparente, superpuesta al hero (landing). */
+  floating?: boolean;
 };
 
-const LINKS: Array<{ href: string; label: string }> = [
+const LINKS_IN: Array<{ href: string; label: string }> = [
   { href: "/", label: "Tus canciones" },
   { href: "/guia", label: "Guía" },
   { href: "/pricing", label: "Precios" },
 ];
+const LINKS_OUT: Array<{ href: string; label: string }> = [
+  { href: "/landing", label: "Inicio" },
+  { href: "/guia", label: "Guía" },
+  { href: "/pricing", label: "Precios" },
+];
 
-export default function AppHeader({ title, subtitle, actions }: Props) {
+/**
+ * Barra superior única de la app: misma marca, mismos enlaces y mismo trazo
+ * en todas las páginas. Con sesión muestra el avatar; sin sesión, "Entrar".
+ */
+export default function AppHeader({ title, subtitle, actions, floating = false }: Props) {
   const { email, signOut } = useAuth();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -40,20 +51,26 @@ export default function AppHeader({ title, subtitle, actions }: Props) {
   }, [open]);
 
   const initial = (email?.[0] ?? "P").toUpperCase();
+  const links = email ? LINKS_IN : LINKS_OUT;
 
   return (
     <>
-      <header className="nav" role="banner">
+      <header className={floating ? "nav floating" : "nav"} role="banner">
         <div className="nav-inner">
-          <Brand />
+          <Brand href={email ? "/" : "/landing"} />
           <nav className="nav-links" aria-label="Principal">
-            {LINKS.map((l) => (
+            {links.map((l) => (
               <Link key={l.href} href={l.href} aria-current={pathname === l.href ? "page" : undefined}>
                 {l.label}
               </Link>
             ))}
           </nav>
           <div className="nav-spacer" />
+          {!email && (
+            <Link className="btn small" href="/login">
+              Entrar
+            </Link>
+          )}
           {email && (
             <div className="menu-wrap" ref={menuRef}>
               <button
