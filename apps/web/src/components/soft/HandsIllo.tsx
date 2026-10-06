@@ -31,7 +31,7 @@ const FINGERS: Finger[] = [
   { cx: S * 4, tip: 268, hw: 13 },
 ];
 /** Pulgar: centro del arco de la punta, radio y cuánto se abre hacia afuera (grados). */
-const THUMB = { cx: -16, tipY: 308, r: 15, tilt: 30 };
+const THUMB = { cx: -9, tipY: 310, r: 13, base: 17.5, tilt: 20 };
 /** Posición (sobre el eje del pulgar) donde la palma lo tapa y nace la membrana. */
 const A_CROSS = -30;
 const TH_RAD = (THUMB.tilt * Math.PI) / 180;
@@ -39,6 +39,8 @@ const TH_RAD = (THUMB.tilt * Math.PI) / 180;
 const TH_D = { x: -Math.sin(TH_RAD), y: -Math.cos(TH_RAD) };
 const TH_N = { x: Math.cos(TH_RAD), y: -Math.sin(TH_RAD) };
 const thPt = (a: number, b: number) => ({ x: THUMB.cx + TH_D.x * a + TH_N.x * b, y: THUMB.tipY + TH_D.y * a + TH_N.y * b });
+/** Medio ancho del pulgar a lo largo de su eje: fino en la punta, ancho en la base (forma de gota). */
+const thHw = (a: number) => THUMB.r + (THUMB.base - THUMB.r) * Math.min(1, Math.max(0, (-4 - a) / 56));
 /** Valles entre dedos (índice·medio, medio·anular, anular·meñique). */
 const VALLEYS = [354, 350, 358];
 /** Horcadura pulgar·índice y base exterior del meñique. */
@@ -104,11 +106,11 @@ function thumb(): Piece {
   const t = THUMB;
   const k = t.r * 0.56;
   const path = [
-    `M ${pt(thPt(-64, -t.r))}`,
+    `M ${pt(thPt(-64, -thHw(-64)))}`,
     `L ${pt(thPt(-4, -t.r))}`,
     `C ${pt(thPt(k - 4, -t.r))}, ${pt(thPt(t.r, -k))}, ${pt(thPt(t.r, 0))}`,
     `C ${pt(thPt(t.r, k))}, ${pt(thPt(k - 4, t.r))}, ${pt(thPt(-4, t.r))}`,
-    `L ${pt(thPt(-64, t.r))}`,
+    `L ${pt(thPt(-64, thHw(-64)))}`,
     "Z",
   ].join(" ");
   const nailC = thPt(t.r - 9.5, 0);
@@ -137,10 +139,10 @@ const WRIST_R = { x: pinkyR + 10, y: H + 24 };
 
 /** Palma (misma piel, sin trazo): tapa las bases de los dedos sin tocar sus bordes visibles. */
 function palmCover(): string {
-  const r = THUMB.r;
+  const r = thHw(A_CROSS);
   const o = 1; // sale 1 px por fuera de cada borde: el trazo fijo lo tapa después
   const d: string[] = [`M ${pt(WRIST_L)}`];
-  d.push(`C -24 400, ${pt(thPt(A_CROSS - 14, -r - o))}, ${pt(thPt(A_CROSS, -r - o))}`);
+  d.push(`C -26 396, ${pt(thPt(A_CROSS - 12, -r - 9 - o))}, ${pt(thPt(A_CROSS, -r - o))}`);
   d.push(`L ${pt(thPt(A_CROSS, r + o))}`);
   d.push(`C ${pt(thPt(A_CROSS - 12, r + o))}, ${n1(crotchX - 1)} 344, ${n1(crotchX + o)} ${n1(CROTCH_Y + o)}`);
   FINGERS.forEach((f, i) => {
@@ -159,9 +161,9 @@ function palmCover(): string {
 
 /** Trazos fijos: bordes de la palma y membranas entre dedos. */
 function palmStrokes(): string[] {
-  const r = THUMB.r;
+  const r = thHw(A_CROSS);
   const out: string[] = [];
-  out.push(`M ${pt(WRIST_L)} C -24 400, ${pt(thPt(A_CROSS - 14, -r))}, ${pt(thPt(A_CROSS, -r))}`);
+  out.push(`M ${pt(WRIST_L)} C -26 396, ${pt(thPt(A_CROSS - 12, -r - 9))}, ${pt(thPt(A_CROSS, -r))}`);
   out.push(`M ${pt(thPt(A_CROSS, r))} C ${pt(thPt(A_CROSS - 12, r))}, ${n1(crotchX - 2)} 343, ${n1(crotchX)} ${n1(CROTCH_Y)}`);
   FINGERS.forEach((f, i) => {
     const next = FINGERS[i + 1];
@@ -178,10 +180,10 @@ function shadowOutline(): string {
   const r = THUMB.r;
   const k = r * 0.56;
   const d: string[] = [`M ${pt(WRIST_L)}`];
-  d.push(`C -24 400, ${pt(thPt(-40, -r))}, ${pt(thPt(-4, -r))}`);
+  d.push(`C -26 396, ${pt(thPt(-42, -thHw(-42) - 9))}, ${pt(thPt(-4, -r))}`);
   d.push(`C ${pt(thPt(k - 4, -r))}, ${pt(thPt(r, -k))}, ${pt(thPt(r, 0))}`);
   d.push(`C ${pt(thPt(r, k))}, ${pt(thPt(k - 4, r))}, ${pt(thPt(-4, r))}`);
-  d.push(`C ${pt(thPt(-42, r))}, ${n1(crotchX - 2)} 343, ${n1(crotchX)} ${n1(CROTCH_Y)}`);
+  d.push(`C ${pt(thPt(-42, thHw(-42)))}, ${n1(crotchX - 2)} 343, ${n1(crotchX)} ${n1(CROTCH_Y)}`);
   FINGERS.forEach((f, i) => {
     const tipHw = f.hw * 0.9;
     const base = i === 0 ? CROTCH_Y : VALLEYS[i - 1];
