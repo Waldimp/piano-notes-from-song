@@ -29,23 +29,24 @@ import { clamp01, ease, seg, useSceneProgress } from "./useSceneProgress";
 
 /** Segundos de demo que avanzan las notas antes de la pausa y después del regreso. */
 const SCRUB_BEFORE = 6;
-const SCRUB_AFTER = 10;
+const SCRUB_AFTER = 14;
 /** Máximo de esquirlas (notas visibles a la vez en la demo: ~20–45). */
 const MAX_SHARDS = 80;
 
-/* Tiempos (progreso 0–1 de la escena). */
+/* Tiempos (progreso 0–1 de la escena). El último cuarto del scroll se queda
+ * en el remate, con las notas cayendo, antes de pasar al tutorial. */
 const T = {
-  bye: [0, 0.22],
-  center: [0.03, 0.34],
-  lidOpen: [0.26, 0.5],
-  lidFade: [0.46, 0.56],
-  calm: [0.26, 0.5], // las notas se frenan y se apagan (el teclado se queda)
-  stretch: [0.42, 0.6],
-  snap: [0.6, 0.64], // el cuerpo se rompe
-  burst: [0.6, 0.84], // esquirlas hacia sus notas
-  merge: [0.82, 0.9], // esquirla → nota real, en el sitio
-  resume: [0.89, 0.97], // las notas vuelven a caer
-  tag: [0.9, 0.98],
+  bye: [0, 0.17],
+  center: [0.02, 0.26],
+  lidOpen: [0.2, 0.385],
+  lidFade: [0.355, 0.43],
+  calm: [0.2, 0.385], // las notas se frenan y se apagan (el teclado se queda)
+  stretch: [0.32, 0.46],
+  snap: [0.46, 0.49], // el cuerpo se rompe
+  burst: [0.46, 0.65], // esquirlas hacia sus notas
+  merge: [0.63, 0.69], // esquirla → nota real, en el sitio
+  resume: [0.685, 0.75], // las notas vuelven a caer
+  tag: [0.69, 0.76],
 } as const;
 
 /** Pseudoaleatorio determinista. */

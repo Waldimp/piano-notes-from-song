@@ -1310,7 +1310,7 @@ html.fx-scroll {
 .hero.scene {
   display: block;
   min-height: 0;
-  height: 330svh;
+  height: 400svh;
   overflow: visible;
 }
 .hero.scene .hero-bg {
@@ -1540,7 +1540,7 @@ html.fx-scroll {
     min-height: 0;
   }
   .hero.scene {
-    height: 300svh;
+    height: 370svh;
   }
   .scene-logo {
     width: clamp(110px, 16vh, 150px);
