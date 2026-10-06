@@ -51,14 +51,27 @@ export default function ScrollFx() {
     let hf = heroFade();
     let hb = heroBg();
 
+    // Posición en el documento sin contar transforms (getBoundingClientRect
+    // incluiría el desplazamiento que nosotros mismos aplicamos y se
+    // retroalimentaría).
+    const docTop = (el: HTMLElement) => {
+      let top = 0;
+      let n: HTMLElement | null = el;
+      while (n) {
+        top += n.offsetTop;
+        n = n.offsetParent as HTMLElement | null;
+      }
+      return top;
+    };
+
     const paint = () => {
       const y = window.scrollY;
       const vh = window.innerHeight;
       for (const el of px) {
         const speed = Number(el.dataset.parallax ?? "0.15");
-        const r = el.getBoundingClientRect();
-        // progreso -1 (abajo del viewport) … 0 (centro) … 1 (arriba)
-        const progress = (vh / 2 - (r.top + r.height / 2)) / vh;
+        const top = docTop(el) - y;
+        // progreso -1 (abajo del viewport) … 0 (centro) … 1 (arriba), acotado
+        const progress = Math.max(-1.5, Math.min(1.5, (vh / 2 - (top + el.offsetHeight / 2)) / vh));
         el.style.transform = `translate3d(0, ${(-progress * speed * 160).toFixed(2)}px, 0)`;
       }
       for (const el of hf) {

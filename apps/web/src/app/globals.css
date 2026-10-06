@@ -168,6 +168,11 @@ code {
   opacity: 1;
   transform: none;
 }
+/* Con parallax, ScrollFx manda sobre el transform en cada frame: la
+ * transición solo debe afectar a la opacidad o el bloque se queda rezagado. */
+.reveal[data-parallax] {
+  transition-property: opacity;
+}
 @keyframes floaty {
   0%,
   100% {
